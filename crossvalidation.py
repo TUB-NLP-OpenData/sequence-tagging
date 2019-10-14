@@ -41,13 +41,16 @@ def calc_mean_std_scores(
     return {'m_scores':m_scores,'std_scores':std_scores}
 
 
+def task_fun_builder(score_fun, data_supplier):
+    data = data_supplier()
+
+    def fun(datum):
+        return score_fun(datum, data)
+
+    return fun
+
 def calc_scores(data_supplier, score_fun, splits, n_jobs):
     if n_jobs > 0:
-        def task_fun_builder(score_fun,data_supplier):
-            data = data_supplier()
-            def fun(datum):
-                return score_fun(datum,data)
-            return fun
         with WorkerPool(processes=n_jobs,task_fun_builder=task_fun_builder,task_fun_kwargs={'data_supplier':data_supplier,'score_fun':score_fun}) as p:
             scores = [r for r in p.process_unordered(splits)]
     else:
@@ -65,6 +68,6 @@ if __name__ == '__main__':
                          splits=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
     pprint(scores)
 
-    # mscores = calc_mean_std_scores(data_supplier=lambda: 'some-model', score_fun=dummy_score_fun,
-    #                      splits=[('train_%k', 'test_%k') for k in range(3)], n_jobs=0)
-    # pprint(mscores)
+    mscores = calc_mean_std_scores(data_supplier=lambda: 'some-model', score_fun=dummy_score_fun,
+                         splits=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
+    pprint(mscores)
