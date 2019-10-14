@@ -8,9 +8,8 @@ import spacy
 import flair.datasets
 from spacy.tokenizer import Tokenizer
 
-from ml_backend.flair_scierc_ner import read_scierc_data_to_FlairSentences
-from ml_backend.seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenwise_scores
-import numpy as np
+from flair_scierc_ner import read_scierc_data_to_FlairSentences
+from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenwise_scores
 
 class SpacyCrfSuiteTagger(object):
 
