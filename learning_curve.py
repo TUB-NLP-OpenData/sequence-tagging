@@ -60,7 +60,6 @@ if __name__ == '__main__':
     train_sizes = [t for t,_ in splits]
     scores = calc_scores(data_supplier,score_spacycrfsuite_tagger,[s for _,s in splits],n_jobs=min(multiprocessing.cpu_count()-1,len(splits)))
     results = groupbyfirst(zip(train_sizes,scores))
-    print(results)
 
     def tuple_2_dict(t):
         m,s = t
