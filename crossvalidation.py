@@ -51,11 +51,13 @@ def task_fun_builder(score_fun, data_supplier):
 
 def calc_scores(data_supplier, score_fun, splits, n_jobs):
     if n_jobs > 0:
-        with WorkerPool(processes=n_jobs,task_fun_builder=task_fun_builder,task_fun_kwargs={'data_supplier':data_supplier,'score_fun':score_fun}) as p:
+        with WorkerPool(processes=n_jobs,task_fun_builder=task_fun_builder,task_fun_kwargs={'data_supplier':data_supplier,'score_fun':score_fun},daemons=False) as p:
             scores = [r for r in p.process_unordered(splits)]
     else:
         data = data_supplier()
         scores = [score_fun(split, data) for split in splits]
+    assert len(scores)==len(splits)
+    assert all(s is not None for s in scores)
     return scores
 
 if __name__ == '__main__':

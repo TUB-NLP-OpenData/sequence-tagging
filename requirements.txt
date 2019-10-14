@@ -1,2 +1,3 @@
 util@git+https://git@github.com/dertilo/util.git#egg=util
 sqlutil@git+https://git@github.com/dertilo/sqlutil.git#egg=sqlutil
+flair==0.4.3

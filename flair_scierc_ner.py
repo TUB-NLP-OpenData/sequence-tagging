@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 from util import data_io
 
 TAG_TYPE = 'ner'
-
+LABELS = ['Generic','Task','Method','Material','Metric','OtherScientificTerm']
 def build_flair_sentences(d: Dict) -> List[Sentence]:
 
     def prefix_to_BIOES(label,start,end,current_index):
@@ -32,6 +32,7 @@ def build_flair_sentences(d: Dict) -> List[Sentence]:
     offset = 0
     sentences = []
     for tokens, ner_spans in zip(d['sentences'], d['ner']):
+        assert all([l in LABELS for _,_,l in ner_spans])
         sentence: Sentence = Sentence()
         [sentence.add_token(Token(tok)) for tok in tokens]
         [tag_it(token, k + offset, ner_spans) for k, token in enumerate(sentence)]
