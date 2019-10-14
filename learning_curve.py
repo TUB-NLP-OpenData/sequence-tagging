@@ -35,8 +35,9 @@ def groupbyfirst(x:Iterable[Tuple[Any,Any]]):
             }
 
 from pathlib import Path
-home = str(Path.home())
-data_path = home+'/data/scierc_data/processed_data/json/'
+# home = str(Path.home())
+home = '/docker-share'
+data_path = home+'/data/scierc_data/processed_data/json'
 results_path = home+'/data/scierc_data'
 
 def load_datasets():
@@ -49,10 +50,10 @@ if __name__ == '__main__':
     len_train_and_test = len(data['train']+data['test'])
     len_train_set = len(data['train'])
 
-    num_folds = 2
+    num_folds = 3
     splits=[(train_size,{'train': train , 'test':list(range(len_train_set,len_train_and_test))})
-     for train_size in np.arange(0.1,0.3,0.1)
-     for train,_ in ShuffleSplit(n_splits=num_folds, train_size=train_size,test_size=1-train_size, random_state=111).split(
+     for train_size in np.arange(0.2,1.0,0.1).tolist()+[0.99]
+     for train,_ in ShuffleSplit(n_splits=num_folds, train_size=train_size,test_size=None, random_state=111).split(
                 X=range(len_train_set))
      ]
     print('got %d evaluations to calculate'%len(splits))
@@ -68,4 +69,3 @@ if __name__ == '__main__':
     data_io.write_json(results_path+'/learning_curve_scores.json',results)
     trainsize_to_mean_std_scores={train_size: tuple_2_dict(calc_mean_and_std(m))for train_size,m in results.items()}
     data_io.write_json(results_path+'/learning_curve_meanstd_scores.json',trainsize_to_mean_std_scores)
-    # pprint(trainsize_to_mean_std_scores)
