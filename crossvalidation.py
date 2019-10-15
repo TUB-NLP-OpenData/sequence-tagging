@@ -1,5 +1,7 @@
 import random
 from pprint import pprint
+from typing import Iterable, List, Any
+
 import numpy as np
 
 from util.util_methods import get_dict_paths, set_val, get_val
@@ -29,34 +31,25 @@ def calc_mean_and_std(eval_metrices):
     return means,stds
 
 def calc_mean_std_scores(
-        data_supplier,
+        score_fun_kwargs_supplier,
         score_fun,
-        splits,
+        scoring_jobs,
         n_jobs=0
     ):
-    scores = calc_scores(data_supplier, score_fun, splits, n_jobs)
-    assert len(scores) == len(splits)
+    scores = calc_scores(score_fun, score_fun_kwargs_supplier, scoring_jobs, n_jobs)
+    assert len(scores) == len(scoring_jobs)
 
     m_scores, std_scores = calc_mean_and_std(scores)
     return {'m_scores':m_scores,'std_scores':std_scores}
 
-
-def task_fun_builder(score_fun, data_supplier):
-    data = data_supplier()
-
-    def fun(datum):
-        return score_fun(datum, data)
-
-    return fun
-
-def calc_scores(data_supplier, score_fun, splits, n_jobs):
+def calc_scores(score_fun, score_fun_kwargs_supplier, scoring_jobs:List[Any], n_jobs):
     if n_jobs > 0:
-        with WorkerPool(processes=n_jobs,task_fun_builder=task_fun_builder,task_fun_kwargs={'data_supplier':data_supplier,'score_fun':score_fun},daemons=False) as p:
-            scores = [r for r in p.process_unordered(splits)]
+        with WorkerPool(processes=n_jobs, task_fun=score_fun, task_fun_kwargs_supplier=score_fun_kwargs_supplier, daemons=False) as p:
+            scores = [r for r in p.process_unordered(scoring_jobs)]
     else:
-        data = data_supplier()
-        scores = [score_fun(split, data) for split in splits]
-    assert len(scores)==len(splits)
+        data = score_fun_kwargs_supplier()
+        scores = [score_fun(split, data) for split in scoring_jobs]
+    assert len(scores)==len(scoring_jobs)
     assert all(s is not None for s in scores)
     return scores
 
@@ -66,10 +59,10 @@ if __name__ == '__main__':
         return {model_data:{'dummy-score-%s'%dataset_name:random.random() for dataset_name in split}}
 
 
-    scores = calc_scores(data_supplier=lambda: 'some-model', score_fun=dummy_score_fun,
-                         splits=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
+    scores = calc_scores(score_fun_kwargs_supplier=lambda: {'model_data':'some-model'}, score_fun=dummy_score_fun,
+                         scoring_jobs=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
     pprint(scores)
 
-    mscores = calc_mean_std_scores(data_supplier=lambda: 'some-model', score_fun=dummy_score_fun,
-                         splits=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
+    mscores = calc_mean_std_scores(score_fun_kwargs_supplier=lambda: {'model_data':'some-model'}, score_fun=dummy_score_fun,
+                         scoring_jobs=[('train_%k', 'test_%k') for k in range(3)], n_jobs=2)
     pprint(mscores)
