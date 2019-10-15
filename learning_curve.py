@@ -18,12 +18,6 @@ def get_flair_sentences(file):
 
 len_train_set=None
 
-def data_supplier():
-    datasets = load_datasets()
-    data = datasets['train'] + datasets['test']
-    return data
-
-
 def groupbykey(x:List[Dict]):
     return {k: [l for _, l in group]
             for k, group in
@@ -63,20 +57,18 @@ def calc_write_learning_curve(name,data_params_supplier,scorer_fun,splits,n_jobs
 
 if __name__ == '__main__':
     data = load_datasets()
-    len_train_and_test = len(data['train']+data['test'])
-    len_train_set = len(data['train'])
 
-    num_folds = 3
-    splits=[(train_size,{'train': train,'dev': train[:20] , 'test':list(range(len_train_set,len_train_and_test))})
-     for train_size in np.arange(0.1,1.0,0.1).tolist()+[0.99]
+    num_folds = 5
+    splits=[(train_size,{'train': train,'dev': list(range(len(data['dev']))) , 'test':list(range(len(data['test'])))})
+     for train_size in np.arange(0.1,1.0,0.5).tolist()+[0.99]
      for train,_ in ShuffleSplit(n_splits=num_folds, train_size=train_size,test_size=None, random_state=111).split(
-                X=range(len_train_set))
+                X=range(len(data['train'])))
      ]
     print('got %d evaluations to calculate'%len(splits))
 
-    data_params_supplier = lambda: {'data': data_supplier(),
+    data_params_supplier = lambda: {'data': load_datasets(),
                                     'params': {'max_epochs': 6},
                                     'tag_dictionary':build_tag_dict(data['train']+data['test'],TAG_TYPE)
                                     }
-    calc_write_learning_curve('spacyCrfSuite',data_supplier,score_spacycrfsuite_tagger,splits,min(multiprocessing.cpu_count() - 1, len(splits)))
+    calc_write_learning_curve('spacyCrfSuite',load_datasets(),score_spacycrfsuite_tagger,splits,min(multiprocessing.cpu_count() - 1, len(splits)))
     calc_write_learning_curve('flair',data_params_supplier,score_flair_tagger,splits,0)

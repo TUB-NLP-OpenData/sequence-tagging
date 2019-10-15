@@ -21,7 +21,7 @@ from typing import List, Dict
 
 
 def score_spacycrfsuite_tagger(splits:Dict[str,List[int]],data,params={'c1':0.5,'c2':0.0}):
-    data_splits = {split_name:[data[i] for i in split] for split_name,split in splits.items()}
+    data_splits = {split_name:[data[split_name][i] for i in split] for split_name,split in splits.items()}
 
     def get_data_of_split(split_name):
         return [[(token.text, token.tags['ner'].value) for token in datum] for datum in data_splits[split_name]]

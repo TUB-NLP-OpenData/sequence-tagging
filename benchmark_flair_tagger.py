@@ -26,7 +26,7 @@ def score_flair_tagger(
     logger = trainer.log
     logger.setLevel(logging.WARNING)
 
-    data_splits = {split_name:[data[i] for i in split] for split_name,split in splits.items()}
+    data_splits = {split_name:[data[split_name][i] for i in split] for split_name,split in splits.items()}
 
     train_sentences,dev_sentences,test_sentences = data_splits['train'],data_splits['dev'],data_splits['test'],
 
