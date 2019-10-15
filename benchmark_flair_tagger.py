@@ -1,5 +1,6 @@
 import logging
 import multiprocessing
+import shutil
 from pprint import pprint
 from time import time
 from typing import List
@@ -44,7 +45,8 @@ def score_flair_tagger(
     trainer: ModelTrainer = ModelTrainer(tagger, corpus, optimizer=torch.optim.RMSprop)
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
-    save_path = 'flair_sequence_tagging/scierc-ner-%s'%multiprocessing.current_process()
+    save_path = 'flair_seq_tag_model'
+    shutil.rmtree(save_path,ignore_errors=True)
     trainer.train(base_path='%s' % save_path,
                   # evaluation_metric=EvaluationMetric.MICRO_F1_SCORE,
                   learning_rate=0.01,

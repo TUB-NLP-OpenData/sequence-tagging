@@ -17,11 +17,10 @@ from crossvalidation import calc_mean_std_scores
 import torch
 torch.multiprocessing.set_start_method('spawn', force=True)
 from pprint import pprint
-from typing import List, Dict
 
 
-def score_spacycrfsuite_tagger(splits:Dict[str,List[int]],data,params={'c1':0.5,'c2':0.0}):
-    data_splits = {split_name:[data[split_name][i] for i in split] for split_name,split in splits.items()}
+def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun):
+    data_splits = datasets_builder_fun(splits)
 
     def get_data_of_split(split_name):
         return [[(token.text, token.tags['ner'].value) for token in datum] for datum in data_splits[split_name]]
@@ -49,6 +48,14 @@ def get_scierc_data_as_flair_sentences():
                  for sent in build_flair_sentences(d)]
     return sentences
 
+
+def spacyCrfSuite_kwargs_supplier():
+    data = get_scierc_data_as_flair_sentences()
+    return {
+        'params':{'c1':0.5,'c2':0.0},
+        'datasets_builder_fun': lambda split: {dataset_name:[data[i] for i in indizes] for dataset_name,indizes in split.items()}
+    }
+
 if __name__ == '__main__':
 
 
@@ -61,7 +68,7 @@ if __name__ == '__main__':
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
     start = time()
-    m_scores_std_scores = calc_mean_std_scores(get_scierc_data_as_flair_sentences, score_spacycrfsuite_tagger, splits, n_jobs=min(multiprocessing.cpu_count() - 1, num_folds))
+    m_scores_std_scores = calc_mean_std_scores(spacyCrfSuite_kwargs_supplier, score_spacycrfsuite_tagger, splits, n_jobs=min(multiprocessing.cpu_count() - 1, num_folds))
     print('spacy+crfsuite-tagger %d folds-PARALLEL took: %0.2f seconds'%(num_folds,time()-start))
     pprint(m_scores_std_scores)
 
