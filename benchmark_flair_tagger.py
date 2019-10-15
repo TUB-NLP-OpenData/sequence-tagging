@@ -2,7 +2,7 @@ import logging
 import multiprocessing
 from pprint import pprint
 from time import time
-from typing import Union, List
+from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
@@ -11,11 +11,8 @@ from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
 from crossvalidation import calc_mean_std_scores
-from flair_scierc_ner import TAG_TYPE, build_flair_sentences
+from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
-from util import data_io
-
-print(torch.cuda.current_device())
 
 def score_flair_tagger(
         splits,
@@ -79,31 +76,22 @@ def score_flair_tagger(
         'test':calc_seqtag_f1_scores(flair_tagger_predict_bio,corpus.test)
     }
 
-from pathlib import Path
-
-def get_scierc_data_as_flair_sentences():
-    home = str(Path.home())
-    data_path = home + '/data/scierc_data/processed_data/json/'
-
-    sentences = [sent for jsonl_file in ['train.json','dev.json','test.json']
-                 for d in data_io.read_jsonl('%s/%s' % (data_path,jsonl_file))
-                 for sent in build_flair_sentences(d)]
-    return sentences
 
 if __name__ == '__main__':
-
-
+    from pathlib import Path
+    home = str(Path.home())
     from json import encoder
     encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
-    sentences = get_scierc_data_as_flair_sentences()
-    num_folds = 3
-    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
+    data_path = home + '/data/scierc_data/processed_data/json/'
+    sentences = get_scierc_data_as_flair_sentences(data_path =data_path)
+    num_folds = 1
+    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.9, random_state=111)
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
 
     start = time()
     n_jobs = 0#min(5, num_folds)
-    m_scores_std_scores = calc_mean_std_scores(lambda :(get_scierc_data_as_flair_sentences(),{'max_epochs':4}), score_flair_tagger, splits, n_jobs=n_jobs)
+    m_scores_std_scores = calc_mean_std_scores(lambda :(get_scierc_data_as_flair_sentences(data_path) , {'max_epochs':1}), score_flair_tagger, splits, n_jobs=n_jobs)
     print('flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds'%(num_folds,n_jobs,time()-start))
     pprint(m_scores_std_scores)

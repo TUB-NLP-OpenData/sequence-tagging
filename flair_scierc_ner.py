@@ -42,12 +42,22 @@ def build_flair_sentences(d: Dict) -> List[Sentence]:
     return sentences
 
 
-def read_scierc_data_to_FlairSentences(
+def read_scierc_file_to_FlairSentences(
     jsonl_file:str
     )->Dataset:
-    dataset:Dataset = [sent for d in data_io.read_jsonl(jsonl_file) for sent in build_flair_sentences(d)]
+    dataset:Dataset = [sent
+                       for d in data_io.read_jsonl(jsonl_file)
+                       for sent in build_flair_sentences(d)]
     return dataset
+
+def get_scierc_data_as_flair_sentences(data_path):
+
+    sentences = [sent
+                 for jsonl_file in ['train.json','dev.json','test.json']
+                 for sent in read_scierc_file_to_FlairSentences('%s/%s' % (data_path, jsonl_file))]
+    return sentences
 
 if __name__ == '__main__':
     file = '../data/processed_data/json/dev.json'
-    print(read_scierc_data_to_FlairSentences(file))
+    print(read_scierc_file_to_FlairSentences(file))
+
