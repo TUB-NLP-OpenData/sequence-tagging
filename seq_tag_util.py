@@ -14,19 +14,6 @@ def calc_seqtag_f1_scores(pred_targets_fun, token_tag_sequences:List[List[Tuple[
         'f1-spanwise':f1_train
     }
 
-def calc_seqtag_tokenwise_scores(gold_seqs, pred_seqs):
-    gold_flattened = [l for seq in gold_seqs for l in seq]
-    pred_flattened = [l for seq in pred_seqs for l in seq]
-    assert len(gold_flattened) == len(pred_flattened) and len(gold_flattened)>0
-    labels = list(set(gold_flattened))
-    scores = {
-        'f1-micro': metrics.f1_score(gold_flattened, pred_flattened, average='micro'),
-        'f1-macro': metrics.f1_score(gold_flattened, pred_flattened, average='macro'),
-        'clf-report': metrics.classification_report(gold_flattened, pred_flattened, target_names=labels, digits=3,
-                                                    output_dict=True),
-    }
-    return scores
-
 def mark_text(text, char_spans):
     sorted_spans = sorted(char_spans, key=lambda sp:-sp[0])
     for span in sorted_spans:
@@ -81,11 +68,13 @@ def calc_seqtag_tokenwise_scores(gold_seqs, pred_seqs):
     gold_flattened = [l for seq in gold_seqs for l in seq]
     pred_flattened = [l for seq in pred_seqs for l in seq]
     assert len(gold_flattened) == len(pred_flattened) and len(gold_flattened)>0
-    labels = list(set(gold_flattened))
+    label_set = list(set(gold_flattened+pred_flattened))
     scores = {
         'f1-micro': metrics.f1_score(gold_flattened, pred_flattened, average='micro'),
         'f1-macro': metrics.f1_score(gold_flattened, pred_flattened, average='macro'),
-        'clf-report': metrics.classification_report(gold_flattened, pred_flattened, target_names=labels, digits=3,
+        'clf-report': metrics.classification_report(gold_flattened, pred_flattened,
+                                                    target_names=label_set,
+                                                    digits=3,
                                                     output_dict=True),
     }
     return scores

@@ -1,5 +1,5 @@
 from typing import List, Dict
-from flair.data import Sentence, Token
+from flair.data import Sentence, Token, Corpus, Dictionary
 from torch.utils.data import Dataset
 from util import data_io
 
@@ -56,6 +56,22 @@ def get_scierc_data_as_flair_sentences(data_path):
                  for jsonl_file in ['train.json','dev.json','test.json']
                  for sent in read_scierc_file_to_FlairSentences('%s/%s' % (data_path, jsonl_file))]
     return sentences
+
+def build_tag_dict(sentences:List[Sentence],tag_type):
+    corpus = Corpus(
+        train=sentences,
+        dev=[],
+        test=[], name='scierc')
+
+    # Make the tag dictionary
+    tag_dictionary: Dictionary = Dictionary()
+    # tag_dictionary.add_item("O")
+    for sentence in corpus.get_all_sentences():
+        for token in sentence.tokens:
+            tag_dictionary.add_item(token.get_tag(tag_type).value)
+    # tag_dictionary.add_item("<START>")
+    # tag_dictionary.add_item("<STOP>")
+    return corpus.make_tag_dictionary(tag_type)
 
 if __name__ == '__main__':
     file = '../data/processed_data/json/dev.json'

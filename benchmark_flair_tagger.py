@@ -11,7 +11,7 @@ from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
 from crossvalidation import calc_mean_std_scores
-from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences
+from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences, build_tag_dict
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 def score_flair_tagger(
@@ -19,7 +19,9 @@ def score_flair_tagger(
         data_params,
 
 ):
-    data,params = data_params
+    data = data_params['data']
+    params = data_params['params']
+
     from flair.trainers import ModelTrainer, trainer
     logger = trainer.log
     logger.setLevel(logging.WARNING)
@@ -32,7 +34,7 @@ def score_flair_tagger(
         train=train_sentences,
         dev=dev_sentences,
         test=test_sentences, name='scierc')
-    tag_dictionary = corpus.make_tag_dictionary(tag_type=TAG_TYPE)
+    tag_dictionary = data_params['tag_dictionary']
 
     embedding_types: List[TokenEmbeddings] = [
         WordEmbeddings('glove'),
@@ -92,6 +94,11 @@ if __name__ == '__main__':
 
     start = time()
     n_jobs = 0#min(5, num_folds)
-    m_scores_std_scores = calc_mean_std_scores(lambda :(get_scierc_data_as_flair_sentences(data_path) , {'max_epochs':1}), score_flair_tagger, splits, n_jobs=n_jobs)
+
+    data_params_supplier = lambda: {'data': get_scierc_data_as_flair_sentences(data_path),
+                                    'params':{'max_epochs': 1},
+                                    'tag_dictionary':build_tag_dict(sentences,TAG_TYPE)
+                                    }
+    m_scores_std_scores = calc_mean_std_scores(data_params_supplier, score_flair_tagger, splits, n_jobs=n_jobs)
     print('flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds'%(num_folds,n_jobs,time()-start))
     pprint(m_scores_std_scores)
