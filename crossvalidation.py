@@ -6,6 +6,8 @@ import numpy as np
 
 from util.util_methods import get_dict_paths, set_val, get_val
 from util.worker_pool import WorkerPool
+import warnings
+warnings.filterwarnings('ignore')
 
 def imputed(x):
     return np.NaN if isinstance(x,str) else x
