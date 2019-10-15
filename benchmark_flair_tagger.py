@@ -15,26 +15,20 @@ from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences, build
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 def score_flair_tagger(
-        splits,
-        data_params,
+        split,
+        data,tag_dictionary,params,train_dev_test_sentences_builder
 
 ):
-    data = data_params['data']
-    params = data_params['params']
-
     from flair.trainers import ModelTrainer, trainer
     logger = trainer.log
     logger.setLevel(logging.WARNING)
 
-    data_splits = {split_name:[data[split_name][i] for i in split] for split_name,split in splits.items()}
-
-    train_sentences,dev_sentences,test_sentences = data_splits['train'],data_splits['dev'],data_splits['test'],
+    train_sentences,dev_sentences,test_sentences = train_dev_test_sentences_builder(split, data)
 
     corpus = Corpus(
         train=train_sentences,
         dev=dev_sentences,
         test=test_sentences, name='scierc')
-    tag_dictionary = data_params['tag_dictionary']
 
     embedding_types: List[TokenEmbeddings] = [
         WordEmbeddings('glove'),
@@ -57,7 +51,8 @@ def score_flair_tagger(
                   mini_batch_size=32,
                   max_epochs=params['max_epochs'],
                   patience=3,
-                  save_final_model=False
+                  save_final_model=False,
+                  param_selection_mode=True
                   )
     # plotter = Plotter()
     # plotter.plot_training_curves('%s/loss.tsv' % save_path)
@@ -88,7 +83,7 @@ if __name__ == '__main__':
     data_path = home + '/data/scierc_data/processed_data/json/'
     sentences = get_scierc_data_as_flair_sentences(data_path =data_path)
     num_folds = 1
-    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.9, random_state=111)
+    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
 
@@ -96,8 +91,9 @@ if __name__ == '__main__':
     n_jobs = 0#min(5, num_folds)
 
     data_params_supplier = lambda: {'data': get_scierc_data_as_flair_sentences(data_path),
-                                    'params':{'max_epochs': 1},
-                                    'tag_dictionary':build_tag_dict(sentences,TAG_TYPE)
+                                    'params':{'max_epochs': 5},
+                                    'tag_dictionary':build_tag_dict(sentences,TAG_TYPE),
+                                    'train_dev_test_sentences_builder':lambda split,data:[[data[i] for i in split[dataset_name]] for dataset_name in ['train','dev','test']]
                                     }
     m_scores_std_scores = calc_mean_std_scores(data_params_supplier, score_flair_tagger, splits, n_jobs=n_jobs)
     print('flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds'%(num_folds,n_jobs,time()-start))

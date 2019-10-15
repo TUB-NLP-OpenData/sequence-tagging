@@ -47,8 +47,8 @@ def calc_scores(score_fun, score_fun_kwargs_supplier, scoring_jobs:List[Any], n_
         with WorkerPool(processes=n_jobs, task_fun=score_fun, task_fun_kwargs_supplier=score_fun_kwargs_supplier, daemons=False) as p:
             scores = [r for r in p.process_unordered(scoring_jobs)]
     else:
-        data = score_fun_kwargs_supplier()
-        scores = [score_fun(split, data) for split in scoring_jobs]
+        kwargs = score_fun_kwargs_supplier()
+        scores = [score_fun(job, **kwargs) for job in scoring_jobs]
     assert len(scores)==len(scoring_jobs)
     assert all(s is not None for s in scores)
     return scores
