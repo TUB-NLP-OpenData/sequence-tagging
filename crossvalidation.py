@@ -64,14 +64,14 @@ def kwargs_builder(param):
 
 class ScoreTask(Task):
 
-    def __init__(self,score_fun,kwargs_builder,params) -> None:
+    def __init__(self, score_fun, kwargs_builder, builder_kwargs) -> None:
         super().__init__()
         self.score_fun = score_fun
         self.kwargs_builder = kwargs_builder
-        self.params = params
+        self.builder_kwargs = builder_kwargs
 
     def __enter__(self):
-        self.kwargs = self.kwargs_builder(self.params)
+        self.kwargs = self.kwargs_builder(**self.builder_kwargs)
         return self
 
     def __call__(self, data):
