@@ -1,5 +1,6 @@
 import logging
 import multiprocessing
+import os
 import shutil
 from pprint import pprint
 from time import time
@@ -11,7 +12,7 @@ from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
-from crossvalidation import calc_mean_std_scores
+from crossvalidation import calc_mean_std_scores, ScoreTask
 from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences, build_tag_dict
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
@@ -45,8 +46,10 @@ def score_flair_tagger(
     trainer: ModelTrainer = ModelTrainer(tagger, corpus, optimizer=torch.optim.RMSprop)
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
-    save_path = 'flair_seq_tag_model'
-    shutil.rmtree(save_path,ignore_errors=True)
+    save_path = 'flair_seq_tag_model_%s'%str(multiprocessing.current_process())
+    if os.path.isdir(save_path):
+        shutil.rmtree(save_path)
+    assert not os.path.isdir(save_path)
     trainer.train(base_path='%s' % save_path,
                   # evaluation_metric=EvaluationMetric.MICRO_F1_SCORE,
                   learning_rate=0.01,
@@ -54,7 +57,8 @@ def score_flair_tagger(
                   max_epochs=params['max_epochs'],
                   patience=3,
                   save_final_model=False,
-                  param_selection_mode=True
+                  param_selection_mode=True,
+                  num_workers=1# why-the-ff should one need 6 workers for dataloading?!
                   )
     # plotter = Plotter()
     # plotter.plot_training_curves('%s/loss.tsv' % save_path)
@@ -75,6 +79,14 @@ def score_flair_tagger(
         'test':calc_seqtag_f1_scores(flair_tagger_predict_bio,corpus.test)
     }
 
+def kwargs_builder(data_path):
+    sentences = get_scierc_data_as_flair_sentences(data_path)
+    return {'data': sentences,
+     'params': {'max_epochs': 5},
+     'tag_dictionary': build_tag_dict(sentences, TAG_TYPE),
+     'train_dev_test_sentences_builder': lambda split, data: [[data[i] for i in split[dataset_name]] for dataset_name in
+                                                              ['train', 'dev', 'test']]
+     }
 
 if __name__ == '__main__':
     from pathlib import Path
@@ -84,19 +96,15 @@ if __name__ == '__main__':
 
     data_path = home + '/data/scierc_data/processed_data/json/'
     sentences = get_scierc_data_as_flair_sentences(data_path =data_path)
-    num_folds = 1
+    num_folds = 2
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
+    splits = [{'train':train[:30],'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
 
     start = time()
-    n_jobs = 0#min(5, num_folds)
+    n_jobs = 2#min(5, num_folds)
 
-    data_params_supplier = lambda: {'data': get_scierc_data_as_flair_sentences(data_path),
-                                    'params':{'max_epochs': 5},
-                                    'tag_dictionary':build_tag_dict(sentences,TAG_TYPE),
-                                    'train_dev_test_sentences_builder':lambda split,data:[[data[i] for i in split[dataset_name]] for dataset_name in ['train','dev','test']]
-                                    }
-    m_scores_std_scores = calc_mean_std_scores(data_params_supplier, score_flair_tagger, splits, n_jobs=n_jobs)
+    task = ScoreTask(score_flair_tagger,kwargs_builder,{'data_path':data_path})
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     print('flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds'%(num_folds,n_jobs,time()-start))
     pprint(m_scores_std_scores)

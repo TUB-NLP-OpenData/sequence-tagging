@@ -2,25 +2,23 @@ import multiprocessing
 import sys
 
 from util import data_io
+from util.worker_pool import Task
 
 sys.path.append('.')
 
 from time import time
 
-from flair_scierc_ner import build_flair_sentences
+from flair_scierc_ner import build_flair_sentences, get_scierc_data_as_flair_sentences
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
 from sklearn.model_selection import ShuffleSplit
 
-from crossvalidation import calc_mean_std_scores
-
-import torch
-torch.multiprocessing.set_start_method('spawn', force=True)
+from crossvalidation import calc_mean_std_scores, ScoreTask
 from pprint import pprint
 
 
-def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun):
-    data_splits = datasets_builder_fun(splits)
+def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun,data):
+    data_splits = datasets_builder_fun(splits,data)
 
     def get_data_of_split(split_name):
         return [[(token.text, token.tags['ner'].value) for token in datum] for datum in data_splits[split_name]]
@@ -36,39 +34,35 @@ def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun):
 
     return {split_name: calc_seqtag_f1_scores(pred_fun,get_data_of_split(split_name)) for split_name in data_splits.keys()}
 
-
 from pathlib import Path
+home = str(Path.home())
+data_path = home + '/data/scierc_data/processed_data/json/'
 
-def get_scierc_data_as_flair_sentences():
-    home = str(Path.home())
-    data_path = home + '/data/scierc_data/processed_data/json/'
+def datasets_builder_fun(split,data):
+    return {dataset_name: [data[i] for i in indizes] for dataset_name, indizes in split.items()}
 
-    sentences = [sent for jsonl_file in ['train.json','dev.json','test.json']
-                 for d in data_io.read_jsonl('%s/%s' % (data_path,jsonl_file))
-                 for sent in build_flair_sentences(d)]
-    return sentences
+from json import encoder
+encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
-
-def spacyCrfSuite_kwargs_supplier():
-    data = get_scierc_data_as_flair_sentences()
+def build_kwargs(data_path,params):
+    data = get_scierc_data_as_flair_sentences(data_path)
     return {
-        'params':{'c1':0.5,'c2':0.0},
-        'datasets_builder_fun': lambda split: {dataset_name:[data[i] for i in indizes] for dataset_name,indizes in split.items()}
+        'params': params,
+        'data': data,
+        'datasets_builder_fun': datasets_builder_fun
     }
+
 
 if __name__ == '__main__':
 
-
-    from json import encoder
-    encoder.FLOAT_REPR = lambda o: format(o, '.2f')
-
-    sentences = get_scierc_data_as_flair_sentences()
+    sentences = get_scierc_data_as_flair_sentences(data_path)
     num_folds = 3
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
     start = time()
-    m_scores_std_scores = calc_mean_std_scores(spacyCrfSuite_kwargs_supplier, score_spacycrfsuite_tagger, splits, n_jobs=min(multiprocessing.cpu_count() - 1, num_folds))
+    task = ScoreTask(score_fun=score_spacycrfsuite_tagger,kwargs_builder=build_kwargs,builder_kwargs={'params':{'c1': 0.5, 'c2': 0.0}, 'data_path':data_path})
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=min(multiprocessing.cpu_count() - 1, num_folds))
     print('spacy+crfsuite-tagger %d folds-PARALLEL took: %0.2f seconds'%(num_folds,time()-start))
     pprint(m_scores_std_scores)
 
