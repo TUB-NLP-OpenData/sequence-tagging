@@ -48,7 +48,7 @@ def calc_scores(score_task:Task, scoring_jobs:List[Any], n_jobs):
         with WorkerPool(processes=n_jobs,
                         task=score_task,
                         daemons=False) as p:
-            scores = [r for r in p.process_unordered(scoring_jobs)]
+            scores = p.process(scoring_jobs)
     else:
         with score_task as task:
             scores = [task(job) for job in scoring_jobs]
