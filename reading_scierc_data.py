@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from flair.data import Sentence, Token, Corpus, Dictionary
 from torch.utils.data import Dataset
 from util import data_io
@@ -58,7 +58,8 @@ def get_scierc_data_as_flair_sentences(data_path):
                  for sent in read_scierc_file_to_FlairSentences('%s/%s' % (data_path, jsonl_file))]
     return sentences
 
-def build_tag_dict(sentences:List[Sentence],tag_type):
+def build_tag_dict(sequences:List[List[Tuple[str,str]]],tag_type):
+    sentences = build_flair_sentences_from_sequences(sequences)
     corpus = Corpus(
         train=sentences,
         dev=[],
@@ -73,6 +74,16 @@ def build_tag_dict(sentences:List[Sentence],tag_type):
     # tag_dictionary.add_item("<START>")
     # tag_dictionary.add_item("<STOP>")
     return corpus.make_tag_dictionary(tag_type)
+
+def build_flair_sentences_from_sequences(sequences: List[List[Tuple[str,str]]]) -> List[Sentence]:
+
+    sentences = []
+    for seq in sequences:
+        sentence: Sentence = Sentence()
+        [sentence.add_token(Token(tok)) for tok,tag in seq]
+        [flair_token.add_tag(TAG_TYPE, tag) for (token,tag),flair_token in zip(seq,sentence)]
+        sentences.append(sentence)
+    return sentences
 
 def another_span_is_wider(s,k, spans):
     return any([(s[0] >= o[0]) and (s[1] <= o[1]) and k != i for i,o in enumerate(spans)])
@@ -92,7 +103,6 @@ def build_sequences(d:dict):
     offset = 0
     for tokens, token_spans in zip(d['sentences'], d['ner']):
         token_spans = [s for k,s in enumerate(token_spans) if not another_span_is_wider(s,k, token_spans)]
-
         assert all([l in LABELS for _,_,l in token_spans])
         tagged_seqs.append([(token,build_tag(token_index + offset, token_spans)) for token_index, token in enumerate(tokens)])
         offset += len(tokens)

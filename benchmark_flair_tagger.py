@@ -13,7 +13,7 @@ from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
 from crossvalidation import calc_mean_std_scores, ScoreTask
-from flair_scierc_ner import TAG_TYPE, get_scierc_data_as_flair_sentences, build_tag_dict
+from reading_scierc_data import TAG_TYPE, build_tag_dict, read_scierc_seqs, build_flair_sentences_from_sequences
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 def score_flair_tagger(
@@ -24,6 +24,7 @@ def score_flair_tagger(
     from flair.trainers import ModelTrainer, trainer
     logger = trainer.log
     logger.setLevel(logging.WARNING)
+    # torch.cuda.empty_cache()
 
     train_sentences,dev_sentences,test_sentences = train_dev_test_sentences_builder(split, data)
 
@@ -50,12 +51,11 @@ def score_flair_tagger(
     if os.path.isdir(save_path):
         shutil.rmtree(save_path)
     assert not os.path.isdir(save_path)
-    trainer.train(base_path='%s' % save_path,
-                  # evaluation_metric=EvaluationMetric.MICRO_F1_SCORE,
+    trainer.train(base_path=save_path,
                   learning_rate=0.01,
                   mini_batch_size=32,
                   max_epochs=params['max_epochs'],
-                  patience=3,
+                  patience=999,
                   save_final_model=False,
                   param_selection_mode=True,
                   num_workers=1# why-the-ff should one need 6 workers for dataloading?!
@@ -70,23 +70,25 @@ def score_flair_tagger(
 
         pred_sentences = tagger.predict(sentences)
         pred_data = [bilou2bio([token.tags[tagger.tag_type].value for token in datum]) for datum in pred_sentences]
-
-
         return pred_data,targets
 
     return {
-        'train':calc_seqtag_f1_scores(flair_tagger_predict_bio,corpus.train),
-        'test':calc_seqtag_f1_scores(flair_tagger_predict_bio,corpus.test)
+        'train':calc_seqtag_f1_scores(flair_tagger_predict_bio,train_sentences),
+        'test':calc_seqtag_f1_scores(flair_tagger_predict_bio,test_sentences)
     }
 
+def train_dev_test_sentences_builder(split, data):
+    return [build_flair_sentences_from_sequences([data[i] for i in split[dataset_name]]) for dataset_name in ['train', 'dev', 'test']]
+
 def kwargs_builder(data_path):
-    sentences = get_scierc_data_as_flair_sentences(data_path)
+    sentences = [sent
+            for jsonl_file in ['train.json','dev.json','test.json']
+            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+
     return {'data': sentences,
-     'params': {'max_epochs': 5},
+     'params': {'max_epochs': 1},
      'tag_dictionary': build_tag_dict(sentences, TAG_TYPE),
-     'train_dev_test_sentences_builder': lambda split, data: [[data[i] for i in split[dataset_name]] for dataset_name in
-                                                              ['train', 'dev', 'test']]
-     }
+     'train_dev_test_sentences_builder': train_dev_test_sentences_builder}
 
 if __name__ == '__main__':
     from pathlib import Path
@@ -95,14 +97,17 @@ if __name__ == '__main__':
     encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
     data_path = home + '/data/scierc_data/processed_data/json/'
-    sentences = get_scierc_data_as_flair_sentences(data_path =data_path)
+    sentences = [sent
+            for jsonl_file in ['train.json','dev.json','test.json']
+            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+
     num_folds = 2
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [{'train':train[:30],'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
 
     start = time()
-    n_jobs = 2#min(5, num_folds)
+    n_jobs = 0#min(5, num_folds)
 
     task = ScoreTask(score_flair_tagger,kwargs_builder,{'data_path':data_path})
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
