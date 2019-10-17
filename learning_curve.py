@@ -7,17 +7,11 @@ from sklearn.model_selection import ShuffleSplit
 
 import numpy as np
 from benchmark_flair_tagger import score_flair_tagger
+from reading_scierc_data import read_scierc_seqs, build_tag_dict, TAG_TYPE, build_flair_sentences_from_sequences
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
 from crossvalidation import calc_scores, calc_mean_and_std, ScoreTask
-from flair_scierc_ner import build_flair_sentences, build_tag_dict, TAG_TYPE
-
-
-def get_flair_sentences(file):
-    return [seq for d in data_io.read_jsonl(file) for seq in build_flair_sentences(d)]
-
-len_train_set=None
 
 def groupbykey(x:List[Dict]):
     return {k: [l for _, l in group]
@@ -37,9 +31,9 @@ data_path = home+'/data/scierc_data/processed_data/json'
 results_path = home+'/data/scierc_data'
 
 def load_datasets():
-    datasets = {dataset_name: get_flair_sentences('%s/%s.json' % (data_path, dataset_name))
+    dataset_sequences = {dataset_name: read_scierc_seqs('%s/%s.json' % (data_path, dataset_name))
                 for dataset_name in ['train', 'dev', 'test']}
-    return datasets
+    return dataset_sequences
 
 def tuple_2_dict(t):
     m,s = t
@@ -58,14 +52,16 @@ def calc_write_learning_curve(name, kwargs_builder, scorer_fun,params, splits, n
 
 def flair_kwargs_builder(params):
     data = load_datasets()
+
+    def train_dev_test_sentences_builder(split, data):
+        return [build_flair_sentences_from_sequences([data[dataset_name][i] for i in split[dataset_name]]) for dataset_name in
+                ['train', 'dev', 'test']]
+
     return {
         'data': data,
         'params': params,
-        'tag_dictionary': build_tag_dict(data['train'] + data['test'], TAG_TYPE),
-        'train_dev_test_sentences_builder': lambda split, data: [
-            [data[dataset_name][i] for i in split[dataset_name]] for dataset_name in
-            ['train', 'dev', 'test']]
-
+        'tag_dictionary': build_tag_dict([seq for seqs in data.values() for seq in seqs], TAG_TYPE),
+        'train_dev_test_sentences_builder': train_dev_test_sentences_builder
     }
 
 
@@ -83,12 +79,12 @@ if __name__ == '__main__':
 
     num_folds = 1
     splits=[(train_size,{'train': train,'dev': list(range(len(data['dev']))) , 'test':list(range(len(data['test'])))})
-     for train_size in np.arange(0.1,1.0,0.2).tolist()+[0.99]
+     for train_size in [0.99,0.5]#np.arange(0.1,1.0,0.3).tolist()+[0.99]
      for train,_ in ShuffleSplit(n_splits=num_folds, train_size=train_size,test_size=None, random_state=111).split(
                 X=range(len(data['train'])))
      ]
     print('got %d evaluations to calculate'%len(splits))
 
-    calc_write_learning_curve('spacyCrfSuite',spacyCrfSuite_kwargs_supplier,score_spacycrfsuite_tagger,{'params':{'c1':0.5,'c2':0.0}},splits,min(multiprocessing.cpu_count() - 1, len(splits)))
+    # calc_write_learning_curve('spacyCrfSuite',spacyCrfSuite_kwargs_supplier,score_spacycrfsuite_tagger,{'params':{'c1':0.5,'c2':0.0}},splits,min(multiprocessing.cpu_count() - 1, len(splits)))
 
     calc_write_learning_curve('flair', flair_kwargs_builder, score_flair_tagger,{'params':{'max_epochs': 5}}, splits, 3)
