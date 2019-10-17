@@ -1,14 +1,12 @@
 import multiprocessing
 import sys
 
-from util import data_io
-from util.worker_pool import Task
+from reading_scierc_data import read_scierc_seqs
 
 sys.path.append('.')
 
 from time import time
 
-from flair_scierc_ner import build_flair_sentences, get_scierc_data_as_flair_sentences
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
 from sklearn.model_selection import ShuffleSplit
@@ -20,11 +18,8 @@ from pprint import pprint
 def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun,data):
     data_splits = datasets_builder_fun(splits,data)
 
-    def get_data_of_split(split_name):
-        return [[(token.text, token.tags['ner'].value) for token in datum] for datum in data_splits[split_name]]
-
     tagger = SpacyCrfSuiteTagger(**params)
-    tagger.fit(get_data_of_split('train'))
+    tagger.fit(data_splits['train'])
 
     def pred_fun(token_tag_sequences):
         y_pred = tagger.predict([[token for token, tag in datum] for datum in token_tag_sequences])
@@ -32,7 +27,7 @@ def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun,data):
         targets = [bilou2bio([tag for token, tag in datum]) for datum in token_tag_sequences]
         return y_pred,targets
 
-    return {split_name: calc_seqtag_f1_scores(pred_fun,get_data_of_split(split_name)) for split_name in data_splits.keys()}
+    return {split_name: calc_seqtag_f1_scores(pred_fun,data_splits[split_name]) for split_name in data_splits.keys()}
 
 from pathlib import Path
 home = str(Path.home())
@@ -44,8 +39,14 @@ def datasets_builder_fun(split,data):
 from json import encoder
 encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
+def merged_scierc_dataset(data_path):
+    data = [sent
+            for jsonl_file in ['train.json','dev.json','test.json']
+            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+    return data
+
 def build_kwargs(data_path,params):
-    data = get_scierc_data_as_flair_sentences(data_path)
+    data = merged_scierc_dataset(data_path)
     return {
         'params': params,
         'data': data,
@@ -55,7 +56,7 @@ def build_kwargs(data_path,params):
 
 if __name__ == '__main__':
 
-    sentences = get_scierc_data_as_flair_sentences(data_path)
+    sentences = merged_scierc_dataset(data_path)
     num_folds = 3
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
