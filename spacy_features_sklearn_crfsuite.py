@@ -8,7 +8,7 @@ import spacy
 import flair.datasets
 from spacy.tokenizer import Tokenizer
 
-from flair_scierc_ner import read_scierc_file_to_FlairSentences
+from reading_scierc_data import read_scierc_seqs
 from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenwise_scores
 
 class SpacyCrfSuiteTagger(object):
@@ -98,14 +98,9 @@ if __name__ == '__main__':
     from pathlib import Path
     home = str(Path.home())
     data_path = home+'/data/scierc_data/processed_data/json/'
-    train_data=read_scierc_file_to_FlairSentences('%strain.json' % data_path)
-    dev_data=read_scierc_file_to_FlairSentences('%sdev.json' % data_path)
-    test_data=read_scierc_file_to_FlairSentences('%stest.json' % data_path)
-
-    train_data = [[(token.text, token.tags['ner'].value) for token in datum] for datum in train_data]
-    dev_data = [[(token.text, token.tags['ner'].value) for token in datum] for datum in dev_data]
-    test_data = [[(token.text, token.tags['ner'].value) for token in datum] for datum in test_data]
-
+    train_data=read_scierc_seqs('%strain.json' % data_path)
+    dev_data=read_scierc_seqs('%sdev.json' % data_path)
+    test_data=read_scierc_seqs('%stest.json' % data_path)
 
     tagger = SpacyCrfSuiteTagger()
     tagger.fit(dev_data)
