@@ -9,6 +9,7 @@ import flair.datasets
 from spacy.tokenizer import Tokenizer
 
 from reading_scierc_data import read_scierc_seqs
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
 from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenwise_scores
 
 class SpacyCrfSuiteTagger(object):
@@ -97,13 +98,17 @@ if __name__ == '__main__':
 
     from pathlib import Path
     home = str(Path.home())
-    data_path = home+'/data/scierc_data/processed_data/json/'
-    train_data=read_scierc_seqs('%strain.json' % data_path)
-    dev_data=read_scierc_seqs('%sdev.json' % data_path)
-    test_data=read_scierc_seqs('%stest.json' % data_path)
+    # data_path = home+'/data/scierc_data/processed_data/json/'
+    # datasets = read_scierc_data(data_path)
 
-    tagger = SpacyCrfSuiteTagger()
-    tagger.fit(dev_data)
+    path = '../scibert/data/ner/JNLPBA'
+    datasets  = read_JNLPBA_data(path)
+
+    train_data, test_data = datasets['train'],datasets['test']
+    print('train/test-set-len: %d / %d'%(len(train_data),len(test_data)))
+
+    tagger = SpacyCrfSuiteTagger(c1=0.5,c2=0.0)
+    tagger.fit(train_data)
 
     y_pred = tagger.predict([[token for token, tag in datum] for datum in train_data])
     y_pred = [bilou2bio([tag for tag in datum]) for datum in y_pred]
@@ -134,4 +139,22 @@ crfsuite-fitting took: 31.05
 'test-f1-macro: 0.53'
 'test-f1-micro: 0.82'
 'test-f1-spanwise: 0.48'
+
+# scierc
+train/test-set-len: 1861 / 551
+'train-f1-macro: 0.90'
+'train-f1-micro: 0.96'
+'train-f1-spanwise: 0.86'
+'test-f1-macro: 0.54'
+'test-f1-micro: 0.82'
+'test-f1-spanwise: 0.49'
+
+# JNLPBA
+train/test-set-len: 16807 / 3856
+'train-f1-macro: 0.86'
+'train-f1-micro: 0.95'
+'train-f1-spanwise: 0.81'
+'test-f1-macro: 0.69'
+'test-f1-micro: 0.91'
+'test-f1-spanwise: 0.63'
 '''
