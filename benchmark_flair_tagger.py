@@ -8,12 +8,13 @@ from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
-from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings
+from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings, BertEmbeddings
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
 from crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import TAG_TYPE, build_tag_dict, read_scierc_seqs, build_flair_sentences_from_sequences
+from reading_seqtag_data import read_JNLPBA_data
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 def score_flair_tagger(
@@ -44,7 +45,7 @@ def score_flair_tagger(
                                             locked_dropout=0.01,
                                             dropout=0.01,
                                             use_crf=True)
-    trainer: ModelTrainer = ModelTrainer(tagger, corpus, optimizer=torch.optim.RMSprop)
+    trainer: ModelTrainer = ModelTrainer(tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=True)
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
     save_path = 'flair_seq_tag_model_%s'%str(multiprocessing.current_process())
@@ -53,7 +54,7 @@ def score_flair_tagger(
     assert not os.path.isdir(save_path)
     trainer.train(base_path=save_path,
                   learning_rate=0.01,
-                  mini_batch_size=32,
+                  mini_batch_size=128,
                   max_epochs=params['max_epochs'],
                   patience=999,
                   save_final_model=False,
@@ -80,13 +81,14 @@ def score_flair_tagger(
 def train_dev_test_sentences_builder(split, data):
     return [build_flair_sentences_from_sequences([data[i] for i in split[dataset_name]]) for dataset_name in ['train', 'dev', 'test']]
 
-def kwargs_builder(data_path):
-    sentences = [sent
-            for jsonl_file in ['train.json','dev.json','test.json']
-            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+def get_data(data_path):
+    data = [sent for _,sequences in read_JNLPBA_data(data_path).items() for sent in sequences]
+    return data
 
+def kwargs_builder(data_path):
+    sentences = get_data(data_path)
     return {'data': sentences,
-     'params': {'max_epochs': 1},
+     'params': {'max_epochs': 40},
      'tag_dictionary': build_tag_dict(sentences, TAG_TYPE),
      'train_dev_test_sentences_builder': train_dev_test_sentences_builder}
 
@@ -96,14 +98,13 @@ if __name__ == '__main__':
     from json import encoder
     encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
-    data_path = home + '/data/scierc_data/processed_data/json/'
-    sentences = [sent
-            for jsonl_file in ['train.json','dev.json','test.json']
-            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+    # data_path = home + '/data/scierc_data/processed_data/json/'
+    data_path = '../scibert/data/ner/JNLPBA'
 
-    num_folds = 2
+    sentences = get_data(data_path)
+    num_folds = 1
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [{'train':train[:30],'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
+    splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
 
     start = time()
@@ -113,3 +114,22 @@ if __name__ == '__main__':
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     print('flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds'%(num_folds,n_jobs,time()-start))
     pprint(m_scores_std_scores)
+
+
+'''
+# on gunther and JNLPBA-data
+flair-tagger 1 folds with 0 jobs in PARALLEL took: 1663.84 seconds
+40 epochs; mini_batch_size=128; Adam
+{'m_scores': {'test': {'f1-macro': 0.7668117883567187,
+                       'f1-micro': 0.9197922774101684,
+                       'f1-spanwise': 0.711168164313222},
+              'train': {'f1-macro': 0.8357444380180088,
+                        'f1-micro': 0.9443315056938001,
+                        'f1-spanwise': 0.7834623331299312}},
+ 'std_scores': {'test': {'f1-macro': 0.0, 'f1-micro': 0.0, 'f1-spanwise': 0.0},
+                'train': {'f1-macro': 0.0,
+                          'f1-micro': 0.0,
+                          'f1-spanwise': 0.0}}}
+
+
+'''

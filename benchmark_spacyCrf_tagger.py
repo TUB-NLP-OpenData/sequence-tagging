@@ -2,6 +2,7 @@ import multiprocessing
 import sys
 
 from reading_scierc_data import read_scierc_seqs
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
 
 sys.path.append('.')
 
@@ -31,7 +32,6 @@ def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun,data):
 
 from pathlib import Path
 home = str(Path.home())
-data_path = home + '/data/scierc_data/processed_data/json/'
 
 def datasets_builder_fun(split,data):
     return {dataset_name: [data[i] for i in indizes] for dataset_name, indizes in split.items()}
@@ -39,14 +39,12 @@ def datasets_builder_fun(split,data):
 from json import encoder
 encoder.FLOAT_REPR = lambda o: format(o, '.2f')
 
-def merged_scierc_dataset(data_path):
-    data = [sent
-            for jsonl_file in ['train.json','dev.json','test.json']
-            for sent in read_scierc_seqs('%s/%s' % (data_path, jsonl_file))]
+def get_data(data_path):
+    data = [sent for _,sequences in read_JNLPBA_data(data_path).items() for sent in sequences]
     return data
 
 def build_kwargs(data_path,params):
-    data = merged_scierc_dataset(data_path)
+    data = get_data(data_path)
     return {
         'params': params,
         'data': data,
@@ -55,16 +53,18 @@ def build_kwargs(data_path,params):
 
 
 if __name__ == '__main__':
-
-    sentences = merged_scierc_dataset(data_path)
+    # data_path = home + '/data/scierc_data/processed_data/json/'
+    data_path = '../scibert/data/ner/JNLPBA'
+    sentences = get_data(data_path)
     num_folds = 3
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
 
     start = time()
     task = ScoreTask(score_fun=score_spacycrfsuite_tagger,kwargs_builder=build_kwargs,builder_kwargs={'params':{'c1': 0.5, 'c2': 0.0}, 'data_path':data_path})
-    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=min(multiprocessing.cpu_count() - 1, num_folds))
-    print('spacy+crfsuite-tagger %d folds-PARALLEL took: %0.2f seconds'%(num_folds,time()-start))
+    num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
+    print('spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds'%(num_folds,num_workers,time()-start))
     pprint(m_scores_std_scores)
 
 
@@ -91,4 +91,27 @@ spacy+crfsuite-tagger 3 folds-PARALLEL took: 74.86 seconds
                 'train': {'f1-macro': 0.002357299459853917,
                           'f1-micro': 0.0006117207995410837,
                           'f1-spanwise': 0.0025053074858217297}}}
+                          
+# on gunther and JNLPBA-data
+spacy+crfsuite-tagger 3 folds-PARALLEL took: 507.72 seconds
+
+{'m_scores': {'dev': {'f1-macro': 0.8645722098040851,
+                      'f1-micro': 0.950338415398806,
+                      'f1-spanwise': 0.8067537304384289},
+              'test': {'f1-macro': 0.759263780405201,
+                       'f1-micro': 0.9214014646164155,
+                       'f1-spanwise': 0.7142331137117344},
+              'train': {'f1-macro': 0.8634555655809333,
+                        'f1-micro': 0.9501748452465374,
+                        'f1-spanwise': 0.8063675130764999}},
+ 'std_scores': {'dev': {'f1-macro': 0.004099180910042565,
+                        'f1-micro': 0.0003087015574075688,
+                        'f1-spanwise': 0.0024466403296221633},
+                'test': {'f1-macro': 0.00042005226966156795,
+                         'f1-micro': 0.0004021343926907527,
+                         'f1-spanwise': 0.0019832653200119116},
+                'train': {'f1-macro': 0.0004980035249218241,
+                          'f1-micro': 0.00024561871064496466,
+                          'f1-spanwise': 0.0007059342785105874}}}
+
 '''
