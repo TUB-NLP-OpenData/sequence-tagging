@@ -4,7 +4,7 @@ import sys
 from reading_scierc_data import read_scierc_seqs
 from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
 
-sys.path.append('.')
+sys.path.append(".")
 
 from time import time
 
@@ -16,59 +16,90 @@ from crossvalidation import calc_mean_std_scores, ScoreTask
 from pprint import pprint
 
 
-def score_spacycrfsuite_tagger(splits,params,datasets_builder_fun,data):
-    data_splits = datasets_builder_fun(splits,data)
+def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
+    data_splits = datasets_builder_fun(splits, data)
 
     tagger = SpacyCrfSuiteTagger(**params)
-    tagger.fit(data_splits['train'])
+    tagger.fit(data_splits["train"])
 
     def pred_fun(token_tag_sequences):
-        y_pred = tagger.predict([[token for token, tag in datum] for datum in token_tag_sequences])
+        y_pred = tagger.predict(
+            [[token for token, tag in datum] for datum in token_tag_sequences]
+        )
         y_pred = [bilou2bio([tag for tag in datum]) for datum in y_pred]
-        targets = [bilou2bio([tag for token, tag in datum]) for datum in token_tag_sequences]
-        return y_pred,targets
+        targets = [
+            bilou2bio([tag for token, tag in datum]) for datum in token_tag_sequences
+        ]
+        return y_pred, targets
 
-    return {split_name: calc_seqtag_f1_scores(pred_fun,data_splits[split_name]) for split_name in data_splits.keys()}
-
-from pathlib import Path
-home = str(Path.home())
-
-def datasets_builder_fun(split,data):
-    return {dataset_name: [data[i] for i in indizes] for dataset_name, indizes in split.items()}
-
-from json import encoder
-encoder.FLOAT_REPR = lambda o: format(o, '.2f')
-
-def get_data(data_path):
-    data = [sent for _,sequences in read_JNLPBA_data(data_path).items() for sent in sequences]
-    return data
-
-def build_kwargs(data_path,params):
-    data = get_data(data_path)
     return {
-        'params': params,
-        'data': data,
-        'datasets_builder_fun': datasets_builder_fun
+        split_name: calc_seqtag_f1_scores(pred_fun, data_splits[split_name])
+        for split_name in data_splits.keys()
     }
 
 
-if __name__ == '__main__':
+from pathlib import Path
+
+home = str(Path.home())
+
+
+def datasets_builder_fun(split, data):
+    return {
+        dataset_name: [data[i] for i in indizes]
+        for dataset_name, indizes in split.items()
+    }
+
+
+from json import encoder
+
+encoder.FLOAT_REPR = lambda o: format(o, ".2f")
+
+
+def get_data(data_path):
+    data = [
+        sent
+        for _, sequences in read_JNLPBA_data(data_path).items()
+        for sent in sequences
+    ]
+    return data
+
+
+def build_kwargs(data_path, params):
+    data = get_data(data_path)
+    return {
+        "params": params,
+        "data": data,
+        "datasets_builder_fun": datasets_builder_fun,
+    }
+
+
+if __name__ == "__main__":
     # data_path = home + '/data/scierc_data/processed_data/json/'
-    data_path = '../scibert/data/ner/JNLPBA'
+    data_path = "../scibert/data/ner/JNLPBA"
     sentences = get_data(data_path)
     num_folds = 3
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [{'train':train,'dev':train[:round(len(train)/5)],'test':test} for train,test in splitter.split(X=range(len(sentences)))]
+    splits = [
+        {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
+        for train, test in splitter.split(X=range(len(sentences)))
+    ]
 
     start = time()
-    task = ScoreTask(score_fun=score_spacycrfsuite_tagger,kwargs_builder=build_kwargs,builder_kwargs={'params':{'c1': 0.5, 'c2': 0.0}, 'data_path':data_path})
+    task = ScoreTask(
+        score_fun=score_spacycrfsuite_tagger,
+        kwargs_builder=build_kwargs,
+        builder_kwargs={"params": {"c1": 0.5, "c2": 0.0}, "data_path": data_path},
+    )
     num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
-    print('spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds'%(num_folds,num_workers,time()-start))
+    print(
+        "spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds"
+        % (num_folds, num_workers, time() - start)
+    )
     pprint(m_scores_std_scores)
 
 
-'''
+"""
 #############################################################################
 on x1-carbon
 
@@ -114,4 +145,4 @@ spacy+crfsuite-tagger 3 folds-PARALLEL took: 507.72 seconds
                           'f1-micro': 0.00024561871064496466,
                           'f1-spanwise': 0.0007059342785105874}}}
 
-'''
+"""
