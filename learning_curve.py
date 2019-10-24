@@ -1,11 +1,9 @@
 import multiprocessing
 from itertools import groupby
-from pprint import pprint
 from time import time
 from typing import Dict, List, Tuple, Any, Iterable
 from sklearn.model_selection import ShuffleSplit
 
-import numpy as np
 from benchmark_flair_tagger import score_flair_tagger
 from reading_scierc_data import (
     read_scierc_seqs,
@@ -16,7 +14,7 @@ from reading_scierc_data import (
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
-from crossvalidation import calc_scores, calc_mean_and_std, ScoreTask
+from mlutil.crossvalidation import calc_scores, calc_mean_and_std, ScoreTask
 
 
 def groupbykey(x: List[Dict]):

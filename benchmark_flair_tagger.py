@@ -12,16 +12,14 @@ from flair.embeddings import (
     TokenEmbeddings,
     WordEmbeddings,
     StackedEmbeddings,
-    BertEmbeddings,
 )
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
-from crossvalidation import calc_mean_std_scores, ScoreTask
+from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import (
     TAG_TYPE,
     build_tag_dict,
-    read_scierc_seqs,
     build_flair_sentences_from_sequences,
 )
 from reading_seqtag_data import read_JNLPBA_data

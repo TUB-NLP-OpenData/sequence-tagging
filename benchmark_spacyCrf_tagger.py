@@ -1,8 +1,7 @@
 import multiprocessing
 import sys
 
-from reading_scierc_data import read_scierc_seqs
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
+from reading_seqtag_data import read_JNLPBA_data
 
 sys.path.append(".")
 
@@ -12,7 +11,7 @@ from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
 from sklearn.model_selection import ShuffleSplit
 
-from crossvalidation import calc_mean_std_scores, ScoreTask
+from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from pprint import pprint
 
 
