@@ -1,6 +1,7 @@
 # sequence-tagging
 ### setup
     pip install -r requirements
+    python -m spacy download en_core_web_sm
     
 ### data
 
