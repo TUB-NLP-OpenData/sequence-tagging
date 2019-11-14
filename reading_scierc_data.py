@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, NamedTuple
 from flair.data import Sentence, Token, Corpus, Dictionary
 from torch.utils.data import Dataset
 from util import data_io
@@ -105,8 +105,14 @@ def another_span_is_wider(s, k, spans):
         [(s[0] >= o[0]) and (s[1] <= o[1]) and k != i for i, o in enumerate(spans)]
     )
 
+class SciercDocument(NamedTuple):
+    clusters:List
+    sentences:List
+    ner:List
+    relations:List
+    doc_key:List
 
-def build_sequences(d: dict):
+def build_tagged_scierc_sequences(scierc_document: SciercDocument)->List[List[Tuple[str, str]]]:
     def build_tag(index, ner_spans) -> str:
         spans_overlapping_with_index = [
             (start, end, label)
@@ -121,27 +127,25 @@ def build_sequences(d: dict):
             tag = "O"
         return tag
 
-    tagged_seqs = []
-    offset = 0
-    for tokens, token_spans in zip(d["sentences"], d["ner"]):
-        token_spans = [
-            s
-            for k, s in enumerate(token_spans)
-            if not another_span_is_wider(s, k, token_spans)
-        ]
-        assert all([l in LABELS for _, _, l in token_spans])
-        tagged_seqs.append(
-            [
-                (token, build_tag(token_index + offset, token_spans))
-                for token_index, token in enumerate(tokens)
+    def get_tagged_sequences():
+        offset = 0
+        for tokens, token_spans in zip(scierc_document.sentences, scierc_document.ner):
+            token_spans = [
+                s
+                for k, s in enumerate(token_spans)
+                if not another_span_is_wider(s, k, token_spans)
             ]
-        )
-        offset += len(tokens)
-    return tagged_seqs
+            assert all([l in LABELS for _, _, l in token_spans])
+            tagged_sequence = [(token, build_tag(token_index + offset, token_spans)) for
+                       token_index, token in enumerate(tokens)]
+            yield tagged_sequence
+            offset += len(tokens)
+
+    return list(get_tagged_sequences())
 
 
-def read_scierc_seqs(jsonl_file):
-    seqs = [sent for d in data_io.read_jsonl(jsonl_file) for sent in build_sequences(d)]
+def read_scierc_seqs(jsonl_file)->List[List[Tuple[str,str]]]:
+    seqs = [sent for d in data_io.read_jsonl(jsonl_file) for sent in build_tagged_scierc_sequences(SciercDocument(**d))]
     return seqs
 
 

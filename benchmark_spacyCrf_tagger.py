@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
 """
 #############################################################################
-on x1-carbon
+on x1-carbon scierc-data
 
 spacy+crfsuite-tagger 3 folds-PARALLEL took: 74.86 seconds
 {'m_scores': {'dev': {'f1-macro': 0.8822625032484681,

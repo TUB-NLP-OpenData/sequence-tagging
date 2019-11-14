@@ -4,15 +4,11 @@ import os
 import shutil
 from pprint import pprint
 from time import time
-from typing import List
+from typing import List, Tuple
 
 import torch
 from flair.data import Sentence, Corpus
-from flair.embeddings import (
-    TokenEmbeddings,
-    WordEmbeddings,
-    StackedEmbeddings,
-)
+from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
@@ -22,7 +18,7 @@ from reading_scierc_data import (
     build_tag_dict,
     build_flair_sentences_from_sequences,
 )
-from reading_seqtag_data import read_JNLPBA_data
+from reading_seqtag_data import read_JNLPBA_data, TaggedSeqsDataSet
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 
@@ -104,17 +100,18 @@ def train_dev_test_sentences_builder(split, data):
     ]
 
 
-def get_data(data_path):
+def get_JNLPBA_data(jnlpda_data_path)->List[List[Tuple[str, str]]]:
+    dataset: TaggedSeqsDataSet = read_JNLPBA_data(jnlpda_data_path)
     data = [
         sent
-        for _, sequences in read_JNLPBA_data(data_path).items()
+        for sequences in [dataset.train, dataset.dev, dataset.test]
         for sent in sequences
     ]
     return data
 
 
 def kwargs_builder(data_path):
-    sentences = get_data(data_path)
+    sentences = get_JNLPBA_data(data_path)
     return {
         "data": sentences,
         "params": {"max_epochs": 40},
@@ -131,10 +128,9 @@ if __name__ == "__main__":
 
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
-    # data_path = home + '/data/scierc_data/processed_data/json/'
     data_path = "../scibert/data/ner/JNLPBA"
 
-    sentences = get_data(data_path)
+    sentences = get_JNLPBA_data(data_path)
     num_folds = 1
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [

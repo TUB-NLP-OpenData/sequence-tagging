@@ -1,16 +1,25 @@
 import os
+from typing import Dict, NamedTuple, Tuple, List
+
 from allennlp.data.dataset_readers import Conll2003DatasetReader
 from reading_scierc_data import read_scierc_seqs
 
 
-def read_scierc_data(data_path):
-    return {
-        dataset_name: read_scierc_seqs("%s/%s.json" % (data_path, dataset_name))
+class TaggedSeqsDataSet(NamedTuple):
+    train: List[List[Tuple[str, str]]]
+    dev: List[List[Tuple[str, str]]]
+    test: List[List[Tuple[str, str]]]
+
+
+def read_scierc_data(scierc_data_path)->TaggedSeqsDataSet:
+    data = {
+        dataset_name: read_scierc_seqs("%s/%s.json" % (scierc_data_path, dataset_name))
         for dataset_name in ["train", "dev", "test"]
     }
+    return TaggedSeqsDataSet(**data)
 
 
-def read_JNLPBA_data(path):
+def read_JNLPBA_data(path) -> TaggedSeqsDataSet:
     conll_reader = Conll2003DatasetReader()
 
     def read_file(file):
@@ -23,12 +32,14 @@ def read_JNLPBA_data(path):
             for instance in instances
         ]
 
-    return {
+    dataset2sequences = {
         file.split(".")[0]: list(read_file("%s/%s" % (path, file)))
         for file in os.listdir(path)
     }
+    return TaggedSeqsDataSet(**dataset2sequences)
 
 
 if __name__ == "__main__":
     path = "../scibert/data/ner/JNLPBA"
     data = read_JNLPBA_data(path)
+    print()

@@ -6,11 +6,11 @@ from sklearn.model_selection import ShuffleSplit
 
 from benchmark_flair_tagger import score_flair_tagger
 from reading_scierc_data import (
-    read_scierc_seqs,
     build_tag_dict,
     TAG_TYPE,
     build_flair_sentences_from_sequences,
 )
+from reading_seqtag_data import read_scierc_data
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
@@ -41,14 +41,11 @@ from pathlib import Path
 home = str(Path.home())
 data_path = home + "/data/scierc_data/processed_data/json"
 results_path = home + "/data/scierc_data"
+# data_path = "../scibert/data/ner/JNLPBA"
 
 
 def load_datasets():
-    dataset_sequences = {
-        dataset_name: read_scierc_seqs("%s/%s.json" % (data_path, dataset_name))
-        for dataset_name in ["train", "dev", "test"]
-    }
-    return dataset_sequences
+    return read_scierc_data(data_path)
 
 
 def tuple_2_dict(t):
@@ -84,7 +81,7 @@ def flair_kwargs_builder(params):
     def train_dev_test_sentences_builder(split, data):
         return [
             build_flair_sentences_from_sequences(
-                [data[dataset_name][i] for i in split[dataset_name]]
+                [getattr(data,dataset_name)[i] for i in split[dataset_name]]
             )
             for dataset_name in ["train", "dev", "test"]
         ]
@@ -93,7 +90,7 @@ def flair_kwargs_builder(params):
         "data": data,
         "params": params,
         "tag_dictionary": build_tag_dict(
-            [seq for seqs in data.values() for seq in seqs], TAG_TYPE
+            [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
         ),
         "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
     }
@@ -105,14 +102,14 @@ def spacyCrfSuite_kwargs_supplier(params):
         "data": data,
         "params": params,
         "datasets_builder_fun": lambda split, data: {
-            dataset_name: [data[dataset_name][i] for i in indizes]
+            dataset_name: [getattr(data,dataset_name)[i] for i in indizes]
             for dataset_name, indizes in split.items()
         },
     }
 
 
 if __name__ == "__main__":
-    data = load_datasets()
+    dataset = load_datasets()
 
     num_folds = 4
     splits = [
@@ -120,14 +117,14 @@ if __name__ == "__main__":
             train_size,
             {
                 "train": train,
-                "dev": list(range(len(data["dev"]))),
-                "test": list(range(len(data["test"]))),
+                "dev": list(range(len(dataset.dev))),
+                "test": list(range(len(dataset.test))),
             },
         )
         for train_size in [0.99]  # np.arange(0.1,1.0,0.3).tolist()+[0.99]
         for train, _ in ShuffleSplit(
             n_splits=num_folds, train_size=train_size, test_size=None, random_state=111
-        ).split(X=range(len(data["train"])))
+        ).split(X=range(len(dataset.train)))
     ]
     print("got %d evaluations to calculate" % len(splits))
 
