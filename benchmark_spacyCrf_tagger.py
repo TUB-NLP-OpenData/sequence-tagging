@@ -1,7 +1,7 @@
 import multiprocessing
 import sys
 
-from reading_seqtag_data import read_JNLPBA_data
+from reading_seqtag_data import get_JNLPBA_sequences
 
 sys.path.append(".")
 
@@ -38,7 +38,6 @@ def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
 
 
 from pathlib import Path
-
 home = str(Path.home())
 
 
@@ -55,12 +54,7 @@ encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
 
 def get_data(data_path):
-    data = [
-        sent
-        for _, sequences in read_JNLPBA_data(data_path).items()
-        for sent in sequences
-    ]
-    return data
+    return get_JNLPBA_sequences(data_path)
 
 
 def build_kwargs(data_path, params):

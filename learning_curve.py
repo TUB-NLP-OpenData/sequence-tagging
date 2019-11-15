@@ -1,4 +1,5 @@
 import multiprocessing
+import numpy
 from itertools import groupby
 from time import time
 from typing import Dict, List, Tuple, Any, Iterable
@@ -10,7 +11,7 @@ from reading_scierc_data import (
     TAG_TYPE,
     build_flair_sentences_from_sequences,
 )
-from reading_seqtag_data import read_scierc_data
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
@@ -39,13 +40,14 @@ def groupbyfirst(x: Iterable[Tuple[Any, Any]]):
 from pathlib import Path
 
 home = str(Path.home())
-data_path = home + "/data/scierc_data/processed_data/json"
 results_path = home + "/data/scierc_data"
-# data_path = "../scibert/data/ner/JNLPBA"
 
 
 def load_datasets():
-    return read_scierc_data(data_path)
+    # data_path = home + "/data/scierc_data/processed_data/json"
+    # return read_scierc_data(data_path)
+    data_path = "../scibert/data/ner/JNLPBA"
+    return read_JNLPBA_data(data_path)
 
 
 def tuple_2_dict(t):
@@ -111,7 +113,7 @@ def spacyCrfSuite_kwargs_supplier(params):
 if __name__ == "__main__":
     dataset = load_datasets()
 
-    num_folds = 4
+    num_folds = 3
     splits = [
         (
             train_size,
@@ -121,7 +123,7 @@ if __name__ == "__main__":
                 "test": list(range(len(dataset.test))),
             },
         )
-        for train_size in [0.99]  # np.arange(0.1,1.0,0.3).tolist()+[0.99]
+        for train_size in numpy.arange(0.1,1.0,0.3).tolist()+[0.99]
         for train, _ in ShuffleSplit(
             n_splits=num_folds, train_size=train_size, test_size=None, random_state=111
         ).split(X=range(len(dataset.train)))
@@ -137,12 +139,12 @@ if __name__ == "__main__":
         min(multiprocessing.cpu_count() - 1, len(splits)),
     )
 
-    num_jobs = 2
+
     calc_write_learning_curve(
         "flair",
         flair_kwargs_builder,
         score_flair_tagger,
         {"params": {"max_epochs": 9}},
         splits,
-        num_jobs,
+        2,
     )

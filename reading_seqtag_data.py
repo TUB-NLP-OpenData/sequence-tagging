@@ -39,6 +39,15 @@ def read_JNLPBA_data(path) -> TaggedSeqsDataSet:
     return TaggedSeqsDataSet(**dataset2sequences)
 
 
+def get_JNLPBA_sequences(jnlpda_data_path)->List[List[Tuple[str, str]]]:
+    dataset: TaggedSeqsDataSet = read_JNLPBA_data(jnlpda_data_path)
+    data = [
+        sent
+        for sequences in [dataset.train, dataset.dev, dataset.test]
+        for sent in sequences
+    ]
+    return data
+
 if __name__ == "__main__":
     path = "../scibert/data/ner/JNLPBA"
     data = read_JNLPBA_data(path)

@@ -4,7 +4,7 @@ import os
 import shutil
 from pprint import pprint
 from time import time
-from typing import List, Tuple
+from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
@@ -18,7 +18,7 @@ from reading_scierc_data import (
     build_tag_dict,
     build_flair_sentences_from_sequences,
 )
-from reading_seqtag_data import read_JNLPBA_data, TaggedSeqsDataSet
+from reading_seqtag_data import get_JNLPBA_sequences
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 
@@ -51,7 +51,7 @@ def score_flair_tagger(
         use_crf=True,
     )
     trainer: ModelTrainer = ModelTrainer(
-        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=True
+        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=False
     )
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
@@ -100,18 +100,8 @@ def train_dev_test_sentences_builder(split, data):
     ]
 
 
-def get_JNLPBA_data(jnlpda_data_path)->List[List[Tuple[str, str]]]:
-    dataset: TaggedSeqsDataSet = read_JNLPBA_data(jnlpda_data_path)
-    data = [
-        sent
-        for sequences in [dataset.train, dataset.dev, dataset.test]
-        for sent in sequences
-    ]
-    return data
-
-
 def kwargs_builder(data_path):
-    sentences = get_JNLPBA_data(data_path)
+    sentences = get_JNLPBA_sequences(data_path)
     return {
         "data": sentences,
         "params": {"max_epochs": 40},
@@ -130,7 +120,7 @@ if __name__ == "__main__":
 
     data_path = "../scibert/data/ner/JNLPBA"
 
-    sentences = get_JNLPBA_data(data_path)
+    sentences = get_JNLPBA_sequences(data_path)
     num_folds = 1
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [
