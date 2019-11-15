@@ -14,4 +14,11 @@ see `scibert/data/ner/JNLPBA`
 
 ### learning-curve on scierc-data
 
-![image](images/learning_curve.png)
+
+![train](images/learning_curve_scierc_train_flair-spacyCrfSuite.png)
+![test](images/learning_curve_scierc_test_flair-spacyCrfSuite.png)
+
+### learning-curves on JNLPBA-data
+
+![train](images/learning_curve_JNLPBA_train_flair-spacyCrfSuite.png)
+![test](images/learning_curve_JNLPBA_test_flair-spacyCrfSuite.png)
