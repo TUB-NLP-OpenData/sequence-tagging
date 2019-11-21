@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import os
 import shutil
+from functools import partial
 from pprint import pprint
 from time import time
 from typing import List
@@ -144,7 +145,7 @@ if __name__ == "__main__":
 
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
-    data_supplier = lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
+    data_supplier = partial(read_JNLPBA_data,path="../scibert/data/ner/JNLPBA")
     dataset = data_supplier()
     num_folds = 1
     do_crossval = False

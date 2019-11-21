@@ -11,9 +11,9 @@ class TaggedSeqsDataSet(NamedTuple):
     test: List[List[Tuple[str, str]]]
 
 
-def read_scierc_data(scierc_data_path)->TaggedSeqsDataSet:
+def read_scierc_data(path)->TaggedSeqsDataSet:
     data = {
-        dataset_name: read_scierc_seqs("%s/%s.json" % (scierc_data_path, dataset_name))
+        dataset_name: read_scierc_seqs("%s/%s.json" % (path, dataset_name))
         for dataset_name in ["train", "dev", "test"]
     }
     return TaggedSeqsDataSet(**data)

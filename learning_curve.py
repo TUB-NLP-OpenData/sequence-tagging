@@ -1,4 +1,6 @@
 import multiprocessing
+from functools import partial
+
 import numpy
 from itertools import groupby
 from time import time
@@ -11,7 +13,8 @@ from reading_scierc_data import (
     TAG_TYPE,
     build_flair_sentences_from_sequences,
 )
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, \
+    TaggedSeqsDataSet
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
@@ -43,13 +46,6 @@ home = str(Path.home())
 results_path = home + "/data/scierc_data"
 
 
-def load_datasets():
-    # data_path = home + "/data/scierc_data/processed_data/json"
-    # return read_scierc_data(data_path)
-    data_path = "../scibert/data/ner/JNLPBA"
-    return read_JNLPBA_data(data_path)
-
-
 def tuple_2_dict(t):
     m, s = t
     return {"mean": m, "std": s}
@@ -77,8 +73,8 @@ def calc_write_learning_curve(
     )
 
 
-def flair_kwargs_builder(params):
-    data = load_datasets()
+def flair_kwargs_builder(params,data_supplier):
+    data:TaggedSeqsDataSet = data_supplier()
 
     def train_dev_test_sentences_builder(split, data):
         return [
@@ -98,8 +94,8 @@ def flair_kwargs_builder(params):
     }
 
 
-def spacyCrfSuite_kwargs_supplier(params):
-    data = load_datasets()
+def spacyCrfSuite_kwargs_supplier(params,data_supplier):
+    data:TaggedSeqsDataSet = data_supplier()
     return {
         "data": data,
         "params": params,
@@ -111,7 +107,10 @@ def spacyCrfSuite_kwargs_supplier(params):
 
 
 if __name__ == "__main__":
-    dataset = load_datasets()
+    data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
+    # data_supplier= lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
+
+    dataset = data_supplier()
 
     num_folds = 3
     splits = [
@@ -134,17 +133,17 @@ if __name__ == "__main__":
         "spacyCrfSuite",
         spacyCrfSuite_kwargs_supplier,
         score_spacycrfsuite_tagger,
-        {"params": {"c1": 0.5, "c2": 0.0}},
+        {"params": {"c1": 0.5, "c2": 0.0},'data_supplier':data_supplier},
         splits,
         min(multiprocessing.cpu_count() - 1, len(splits)),
     )
 
 
-    calc_write_learning_curve(
-        "flair",
-        flair_kwargs_builder,
-        score_flair_tagger,
-        {"params": {"max_epochs": 9}},
-        splits,
-        2,
-    )
+    # calc_write_learning_curve(
+    #     "flair",
+    #     flair_kwargs_builder,
+    #     score_flair_tagger,
+    #     {"params": {"max_epochs": 20},'data_supplier':data_supplier},
+    #     splits,
+    #     2,
+    # )
