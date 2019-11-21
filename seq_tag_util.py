@@ -126,3 +126,20 @@ def compute_TP_P(guessed, correct):
             idx += 1
 
     return correctCount, count
+
+
+def char_precise_spans_to_token_spans(
+    char_spans: List[Tuple[int, int, str]], token_spans: List[Tuple[int, int]]
+):
+    spans = []
+    for char_start, char_end, label in char_spans:
+        closest_token_start = int(
+            np.argmin(
+                [np.abs(token_start - char_start) for token_start, _ in token_spans]
+            )
+        )
+        closest_token_end = int(
+            np.argmin([np.abs(token_end - char_end) for _, token_end in token_spans])
+        )
+        spans.append((closest_token_start, closest_token_end, label))
+    return spans
