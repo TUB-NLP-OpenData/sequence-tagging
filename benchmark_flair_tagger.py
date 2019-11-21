@@ -18,7 +18,11 @@ from reading_scierc_data import (
     build_tag_dict,
     build_flair_sentences_from_sequences,
 )
-from reading_seqtag_data import get_JNLPBA_sequences
+from reading_seqtag_data import (
+    get_JNLPBA_sequences,
+    TaggedSeqsDataSet,
+    read_JNLPBA_data,
+)
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 
@@ -93,18 +97,40 @@ def score_flair_tagger(
     }
 
 
-def train_dev_test_sentences_builder(split, data):
-    return [
-        build_flair_sentences_from_sequences([data[i] for i in split[dataset_name]])
-        for dataset_name in ["train", "dev", "test"]
-    ]
+def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
+    data: TaggedSeqsDataSet = data_supplier()
+
+    def train_dev_test_sentences_builder(split, data):
+        return [
+            build_flair_sentences_from_sequences(
+                [getattr(data, dataset_name)[i] for i in split[dataset_name]]
+            )
+            for dataset_name in ["train", "dev", "test"]
+        ]
+
+    return {
+        "data": data,
+        "params": params,
+        "tag_dictionary": build_tag_dict(
+            [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
+        ),
+        "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
+    }
 
 
-def kwargs_builder(data_path):
-    sentences = get_JNLPBA_sequences(data_path)
+def kwargs_builder(params, data_supplier):
+    dataset: TaggedSeqsDataSet = data_supplier()
+    sentences = dataset.train + dataset.dev + dataset.test
+
+    def train_dev_test_sentences_builder(split, data):
+        return [
+            build_flair_sentences_from_sequences([data[i] for i in split[dataset_name]])
+            for dataset_name in ["train", "dev", "test"]
+        ]
+
     return {
         "data": sentences,
-        "params": {"max_epochs": 40},
+        "params": params,
         "tag_dictionary": build_tag_dict(sentences, TAG_TYPE),
         "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
     }
@@ -118,20 +144,29 @@ if __name__ == "__main__":
 
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
-    data_path = "../scibert/data/ner/JNLPBA"
-
-    sentences = get_JNLPBA_sequences(data_path)
+    data_supplier = lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
+    dataset = data_supplier()
     num_folds = 1
-    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [
-        {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
-        for train, test in splitter.split(X=range(len(sentences)))
-    ]
+    do_crossval = False
+
+    if do_crossval:
+        sentences = dataset.train + dataset.dev + dataset.test
+        splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
+        splits = [
+            {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
+            for train, test in splitter.split(X=range(len(sentences)))
+        ]
+        kwargs_builder_fun = kwargs_builder
+    else:
+        splits = [{'dsname': list(range(len(getattr(dataset, dsname)))) for dsname in
+                   ['train', 'dev', 'test']}] * num_folds
+        kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
 
     start = time()
-    n_jobs = 0  # min(5, num_folds)
+    n_jobs = 2  # min(5, num_folds)
 
-    task = ScoreTask(score_flair_tagger, kwargs_builder, {"data_path": data_path})
+    kwargs_kwargs = {"params": {"max_epochs": 20}, "data_supplier": data_supplier}
+    task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     print(
         "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
