@@ -12,9 +12,10 @@ from reading_scierc_data import (
     build_tag_dict,
     TAG_TYPE,
     build_flair_sentences_from_sequences,
+    read_scierc_seqs,
+    char_to_token_level,
 )
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, \
-    TaggedSeqsDataSet
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet
 from util import data_io
 
 from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
@@ -73,13 +74,13 @@ def calc_write_learning_curve(
     )
 
 
-def flair_kwargs_builder(params,data_supplier):
-    data:TaggedSeqsDataSet = data_supplier()
+def flair_kwargs_builder(params, data_supplier):
+    data: TaggedSeqsDataSet = data_supplier()
 
     def train_dev_test_sentences_builder(split, data):
         return [
             build_flair_sentences_from_sequences(
-                [getattr(data,dataset_name)[i] for i in split[dataset_name]]
+                [getattr(data, dataset_name)[i] for i in split[dataset_name]]
             )
             for dataset_name in ["train", "dev", "test"]
         ]
@@ -94,25 +95,31 @@ def flair_kwargs_builder(params,data_supplier):
     }
 
 
-def spacyCrfSuite_kwargs_supplier(params,data_supplier):
-    data:TaggedSeqsDataSet = data_supplier()
+def spacyCrfSuite_kwargs_supplier(params, data_supplier):
+    data: TaggedSeqsDataSet = data_supplier()
     return {
         "data": data,
         "params": params,
         "datasets_builder_fun": lambda split, data: {
-            dataset_name: [getattr(data,dataset_name)[i] for i in indizes]
+            dataset_name: [getattr(data, dataset_name)[i] for i in indizes]
             for dataset_name, indizes in split.items()
         },
     }
 
 
-if __name__ == "__main__":
-    data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
-    # data_supplier= lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
+def spacyCrfSuite_kwargs_supplier_single_set(params, data_supplier):
+    data: List = data_supplier()
+    return {
+        "data": data,
+        "params": params,
+        "datasets_builder_fun": lambda split, data: {
+            dataset_name: [data[i] for i in indizes]
+            for dataset_name, indizes in split.items()
+        },
+    }
 
-    dataset = data_supplier()
 
-    num_folds = 3
+def build_splits(dataset):
     splits = [
         (
             train_size,
@@ -122,22 +129,58 @@ if __name__ == "__main__":
                 "test": list(range(len(dataset.test))),
             },
         )
-        for train_size in numpy.arange(0.1,1.0,0.3).tolist()+[0.99]
+        for train_size in numpy.arange(0.1, 1.0, 0.3).tolist() + [0.99]
         for train, _ in ShuffleSplit(
             n_splits=num_folds, train_size=train_size, test_size=None, random_state=111
         ).split(X=range(len(dataset.train)))
     ]
+    return splits
+
+
+def build_splits_single_set(data: List, num_folds):
+    dataset_size = len(data)
+    def build_split(num_train, train, test):
+        splits_dict = {
+            "train": train[: num_train],
+            "dev": train[: num_train],
+            "test": test,
+        }
+        return splits_dict
+
+    splits = [
+        (train_size,build_split(int(round(train_size*dataset_size)), train, test))
+        for train_size in numpy.arange(0.1, 1.0, 0.3).tolist() + [0.99]
+        for train, test in ShuffleSplit(
+            n_splits=num_folds, test_size=int(round(0.2*dataset_size)), random_state=111
+        ).split(X=list(range(dataset_size)))
+    ]
+    return splits
+
+
+if __name__ == "__main__":
+    # data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
+    data_supplier = partial(
+        read_scierc_seqs,
+        jsonl_file=home + "/data/current_corrected_annotations.json",
+        process_fun=char_to_token_level,
+    )
+    # data_supplier= lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
+
+    dataset = data_supplier()
+
+    num_folds = 3
+    # splits = build_splits(dataset,num_folds)
+    splits = build_splits_single_set(dataset, num_folds)
     print("got %d evaluations to calculate" % len(splits))
 
     calc_write_learning_curve(
         "spacyCrfSuite",
-        spacyCrfSuite_kwargs_supplier,
+        spacyCrfSuite_kwargs_supplier_single_set,
         score_spacycrfsuite_tagger,
-        {"params": {"c1": 0.5, "c2": 0.0},'data_supplier':data_supplier},
+        {"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
         splits,
         min(multiprocessing.cpu_count() - 1, len(splits)),
     )
-
 
     # calc_write_learning_curve(
     #     "flair",

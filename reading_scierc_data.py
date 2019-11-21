@@ -1,6 +1,9 @@
+import re
 from typing import List, Dict, Tuple, NamedTuple
 from flair.data import Sentence, Token, Corpus, Dictionary
 from torch.utils.data import Dataset
+
+from seq_tag_util import char_precise_spans_to_token_spans
 from util import data_io
 
 TAG_TYPE = "ner"
@@ -105,21 +108,27 @@ def another_span_is_wider(s, k, spans):
         [(s[0] >= o[0]) and (s[1] <= o[1]) and k != i for i, o in enumerate(spans)]
     )
 
-class SciercDocument(NamedTuple):
-    clusters:List
-    sentences:List
-    ner:List
-    relations:List
-    doc_key:List
 
-def build_tagged_scierc_sequences(scierc_document: SciercDocument)->List[List[Tuple[str, str]]]:
+class SciercDocument(NamedTuple):
+    sentences: List
+    ner: List
+    clusters: List = None
+    relations: List = None
+    doc_key: List = None
+
+
+def build_tagged_scierc_sequences(
+    sentences: List[List[str]], ner: List[List]
+) -> List[List[Tuple[str, str]]]:
     def build_tag(index, ner_spans) -> str:
         spans_overlapping_with_index = [
             (start, end, label)
             for start, end, label in ner_spans
             if index >= start and index <= end
         ]
-        assert len(spans_overlapping_with_index) <= 1
+        if len(spans_overlapping_with_index) > 1:
+            spans_overlapping_with_index = [spans_overlapping_with_index[0]]# TODO(tilo)!!
+            # assert False
         if len(spans_overlapping_with_index) == 1:
             start, end, label = spans_overlapping_with_index[0]
             tag = prefix_to_BIOES(label, start, end, index)
@@ -129,29 +138,47 @@ def build_tagged_scierc_sequences(scierc_document: SciercDocument)->List[List[Tu
 
     def get_tagged_sequences():
         offset = 0
-        for tokens, token_spans in zip(scierc_document.sentences, scierc_document.ner):
+        for tokens, token_spans in zip(sentences, ner):
             token_spans = [
                 s
                 for k, s in enumerate(token_spans)
                 if not another_span_is_wider(s, k, token_spans)
             ]
             assert all([l in LABELS for _, _, l in token_spans])
-            tagged_sequence = [(token, build_tag(token_index + offset, token_spans)) for
-                       token_index, token in enumerate(tokens)]
+            tagged_sequence = [
+                (token, build_tag(token_index + offset, token_spans))
+                for token_index, token in enumerate(tokens)
+            ]
             yield tagged_sequence
             offset += len(tokens)
 
     return list(get_tagged_sequences())
 
 
-def read_scierc_seqs(jsonl_file)->List[List[Tuple[str,str]]]:
-    seqs = [sent for d in data_io.read_jsonl(jsonl_file) for sent in build_tagged_scierc_sequences(SciercDocument(**d))]
+def read_scierc_seqs(
+    jsonl_file, process_fun=lambda x: (x["sentences"], x["ner"])
+) -> List[List[Tuple[str, str]]]:
+    seqs = [
+        sent
+        for sentences, ner in (process_fun(d) for d in data_io.read_jsonl(jsonl_file))
+        for sent in build_tagged_scierc_sequences(sentences=sentences, ner=ner)
+    ]
     return seqs
 
+
+def char_to_token_level(d):
+    flair_sentence = Sentence(d['text'], use_tokenizer=True)
+    token_spans = [(tok.start_position,tok.end_position) for tok in flair_sentence.tokens]
+
+    char_spans = d['labels']
+    tagged_token_spans = char_precise_spans_to_token_spans(char_spans, token_spans)
+    sentence = [tok.text for tok in flair_sentence.tokens]
+    return [sentence],[tagged_token_spans]
 
 if __name__ == "__main__":
     from pathlib import Path
 
     home = str(Path.home())
-    file = home + "/data/scierc_data/processed_data/json/dev.json"
-    read_scierc_seqs(file)
+    file = home + "/data/current_corrected_annotations.json"
+    data = read_scierc_seqs(file, process_fun=char_to_token_level)
+    print()
