@@ -165,14 +165,23 @@ def read_scierc_seqs(
     ]
     return seqs
 
+import re
+def regex_tokenizer(text, pattern=r"(?u)\b\w\w+\b")->List[Tuple[int,int,str]]:# pattern stolen from scikit-learn
+    return [(m.start(),m.end(),m.group()) for m in re.finditer(pattern, text)]
+
+use_flair_tokenizer=False
 
 def char_to_token_level(d):
-    flair_sentence = Sentence(d['text'], use_tokenizer=True)
-    token_spans = [(tok.start_position,tok.end_position) for tok in flair_sentence.tokens]
+
+    if use_flair_tokenizer:
+        flair_sentence = Sentence(d['text'], use_tokenizer=True)
+        token_spans = [(tok.start_position,tok.end_position,tok.text) for tok in flair_sentence.tokens]
+    else:
+        token_spans = regex_tokenizer(d['text'])
 
     char_spans = d['labels']
-    tagged_token_spans = char_precise_spans_to_token_spans(char_spans, token_spans)
-    sentence = [tok.text for tok in flair_sentence.tokens]
+    tagged_token_spans = char_precise_spans_to_token_spans(char_spans, [(s,e) for s,e,t in token_spans])
+    sentence = [t for s,e,t in token_spans]
     return [sentence],[tagged_token_spans]
 
 if __name__ == "__main__":

@@ -10,9 +10,11 @@ def calc_seqtag_f1_scores(
     assert len(token_tag_sequences) > 0
     y_pred, targets = pred_targets_fun(token_tag_sequences)
     _, _, f1_train = spanwise_pr_re_f1(y_pred, targets)
+    tokenlevel_scores = calc_seqtag_tokenwise_scores(targets, y_pred)
     return {
-        "f1-macro": calc_seqtag_tokenwise_scores(targets, y_pred)["f1-macro"],
-        "f1-micro": calc_seqtag_tokenwise_scores(targets, y_pred)["f1-micro"],
+        "f1-macro": tokenlevel_scores["f1-macro"],
+        "f1-micro": tokenlevel_scores["f1-micro"],
+        "clf-report":tokenlevel_scores["clf-report"],
         "f1-spanwise": f1_train,
     }
 

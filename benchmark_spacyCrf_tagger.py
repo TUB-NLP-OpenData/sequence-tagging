@@ -1,7 +1,10 @@
 import multiprocessing
 import sys
+from functools import partial
 
+from reading_scierc_data import read_scierc_seqs, char_to_token_level
 from reading_seqtag_data import get_JNLPBA_sequences
+from util import data_io
 
 sys.path.append(".")
 
@@ -41,24 +44,27 @@ from pathlib import Path
 home = str(Path.home())
 
 
-def datasets_builder_fun(split, data):
-    return {
-        dataset_name: [data[i] for i in indizes]
-        for dataset_name, indizes in split.items()
-    }
-
-
 from json import encoder
 
 encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
 
-def get_data(data_path):
-    return get_JNLPBA_sequences(data_path)
+# def get_data(data_path):
+#     return read_scierc_seqs(
+#         jsonl_file=data_path + "/data/current_corrected_annotations.json",
+#         process_fun=char_to_token_level)
+#     # return get_JNLPBA_sequences(data_path)
 
 
-def build_kwargs(data_path, params):
-    data = get_data(data_path)
+def build_kwargs(data_supplier, params):
+    def datasets_builder_fun(split, data):
+        return {
+            dataset_name: [data[i] for i in indizes]
+            for dataset_name, indizes in split.items()
+        }
+
+
+    data = data_supplier()
     return {
         "params": params,
         "data": data,
@@ -68,9 +74,14 @@ def build_kwargs(data_path, params):
 
 if __name__ == "__main__":
     # data_path = home + '/data/scierc_data/processed_data/json/'
-    data_path = "../scibert/data/ner/JNLPBA"
-    sentences = get_data(data_path)
-    num_folds = 3
+    data_supplier = partial(
+        read_scierc_seqs,
+        jsonl_file=home + "/data/current_corrected_annotations.json",
+        process_fun=char_to_token_level,
+    )
+
+    sentences = data_supplier()
+    num_folds = 5
     splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
     splits = [
         {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
@@ -81,7 +92,7 @@ if __name__ == "__main__":
     task = ScoreTask(
         score_fun=score_spacycrfsuite_tagger,
         kwargs_builder=build_kwargs,
-        builder_kwargs={"params": {"c1": 0.5, "c2": 0.0}, "data_path": data_path},
+        builder_kwargs={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
     )
     num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
@@ -89,7 +100,8 @@ if __name__ == "__main__":
         "spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds"
         % (num_folds, num_workers, time() - start)
     )
-    pprint(m_scores_std_scores)
+    data_io.write_json('scores.json',m_scores_std_scores)
+    # pprint(m_scores_std_scores)
 
 
 """
