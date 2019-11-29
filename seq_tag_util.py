@@ -12,9 +12,7 @@ def calc_seqtag_f1_scores(
     _, _, f1_train = spanwise_pr_re_f1(y_pred, targets)
     tokenlevel_scores = calc_seqtag_tokenwise_scores(targets, y_pred)
     return {
-        "f1-macro": tokenlevel_scores["f1-macro"],
-        "f1-micro": tokenlevel_scores["f1-micro"],
-        "clf-report":tokenlevel_scores["clf-report"],
+        "token-level": tokenlevel_scores,
         "f1-spanwise": f1_train,
     }
 
@@ -83,6 +81,7 @@ def calc_seqtag_tokenwise_scores(gold_seqs, pred_seqs):
     scores = {
         "f1-micro": metrics.f1_score(gold_flattened, pred_flattened, average="micro"),
         "f1-macro": metrics.f1_score(gold_flattened, pred_flattened, average="macro"),
+        "cohens-kappa": metrics.cohen_kappa_score(gold_flattened, pred_flattened),
         "clf-report": metrics.classification_report(
             gold_flattened,
             pred_flattened,
