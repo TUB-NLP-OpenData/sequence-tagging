@@ -10,10 +10,10 @@ def calc_seqtag_f1_scores(
     assert len(token_tag_sequences) > 0
     y_pred, targets = pred_targets_fun(token_tag_sequences)
     _, _, f1_train = spanwise_pr_re_f1(y_pred, targets)
-    tokenlevel_scores = calc_seqtag_tokenwise_scores(targets, y_pred)
+    tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, y_pred)
     return {
         "token-level": tokenlevel_scores,
-        "f1-spanwise": f1_train,
+        "f1-micro-spanlevel": f1_train,
     }
 
 
@@ -73,7 +73,7 @@ def spanwise_pr_re_f1(label_pred, label_correct):
     return prec, rec, f1
 
 
-def calc_seqtag_tokenwise_scores(gold_seqs, pred_seqs):
+def calc_seqtag_tokenlevel_scores(gold_seqs, pred_seqs):
     gold_flattened = [l for seq in gold_seqs for l in seq]
     pred_flattened = [l for seq in pred_seqs for l in seq]
     assert len(gold_flattened) == len(pred_flattened) and len(gold_flattened) > 0
