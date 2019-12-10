@@ -9,7 +9,8 @@ from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
-from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings
+from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings, \
+    BertEmbeddings
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
@@ -41,42 +42,44 @@ def score_flair_tagger(
     )
 
     corpus = Corpus(
-        train=train_sentences, dev=dev_sentences, test=test_sentences, name="scierc"
+        train=train_sentences, dev=dev_sentences, test=test_sentences
     )
 
-    embedding_types: List[TokenEmbeddings] = [WordEmbeddings("glove")]
+    embedding_types: List[TokenEmbeddings] = [BertEmbeddings("bert-base-uncased",layers='-1')]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
-        hidden_size=64,
+        hidden_size=200,
+        rnn_layers=2,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
         tag_type=TAG_TYPE,
         locked_dropout=0.01,
-        dropout=0.01,
+        dropout=0.5,
         use_crf=True,
     )
     trainer: ModelTrainer = ModelTrainer(
-        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=False
+        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=True
     )
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
-    save_path = "flair_seq_tag_model_%s" % str(multiprocessing.current_process())
+    process_name = multiprocessing.current_process().name
+    save_path = "flair_seq_tag_model_%s" % process_name
     if os.path.isdir(save_path):
         shutil.rmtree(save_path)
     assert not os.path.isdir(save_path)
     trainer.train(
         base_path=save_path,
-        learning_rate=0.01,
-        mini_batch_size=128,
+        tensorboard_comment=process_name,
+        learning_rate=0.001,
+        mini_batch_size=8,
         max_epochs=params["max_epochs"],
         patience=999,
         save_final_model=False,
-        param_selection_mode=True,
+        param_selection_mode=False,
         num_workers=1,  # why-the-ff should one need 6 workers for dataloading?!
+        monitor_train=True,
+        monitor_test=True,
     )
-    # plotter = Plotter()
-    # plotter.plot_training_curves('%s/loss.tsv' % save_path)
-    # plotter.plot_weights('%s/weights.txt' % save_path)
 
     def flair_tagger_predict_bio(sentences: List[Sentence]):
         train_data = [
@@ -159,14 +162,14 @@ if __name__ == "__main__":
         ]
         kwargs_builder_fun = kwargs_builder
     else:
-        splits = [{'dsname': list(range(len(getattr(dataset, dsname)))) for dsname in
+        splits = [{dsname: list(range(len(getattr(dataset, dsname)))) for dsname in
                    ['train', 'dev', 'test']}] * num_folds
         kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
 
     start = time()
-    n_jobs = 2  # min(5, num_folds)
+    n_jobs = 0  # min(5, num_folds)
 
-    kwargs_kwargs = {"params": {"max_epochs": 20}, "data_supplier": data_supplier}
+    kwargs_kwargs = {"params": {"max_epochs": 40}, "data_supplier": data_supplier}
     task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     print(
