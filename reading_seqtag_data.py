@@ -38,6 +38,42 @@ def read_JNLPBA_data(path) -> TaggedSeqsDataSet:
     }
     return TaggedSeqsDataSet(**dataset2sequences)
 
+def read_tokenized_and_tagged(file_path):
+    '''
+    taken from transformers/examples/utils_ner.py
+    '''
+
+    guid_index = 1
+    examples = []
+    with open(file_path, encoding="utf-8") as f:
+        words = []
+        labels = []
+        for line in f:
+            if line.startswith("-DOCSTART-") or line == "" or line == "\n":
+                if words:
+                    examples.append([(w,l) for w,l in zip(words,labels)])
+                    guid_index += 1
+                    words = []
+                    labels = []
+            else:
+                splits = line.split(" ")
+                words.append(splits[0])
+                if len(splits) > 1:
+                    labels.append(splits[-1].replace("\n", ""))
+                else:
+                    # Examples could have no label for mode = "test"
+                    labels.append("O")
+        if words:
+            examples.append([(w,l) for w,l in zip(words,labels)])
+    return examples
+
+def read_germEval_2014_data(path) -> TaggedSeqsDataSet:
+    dataset2sequences = {
+        file.split(".")[0]: list(read_tokenized_and_tagged("%s/%s" % (path, file)))
+        for file in ['train.txt','dev.txt','test.txt']
+    }
+    return TaggedSeqsDataSet(**dataset2sequences)
+
 
 def get_JNLPBA_sequences(jnlpda_data_path)->List[List[Tuple[str, str]]]:
     dataset: TaggedSeqsDataSet = read_JNLPBA_data(jnlpda_data_path)
@@ -49,6 +85,6 @@ def get_JNLPBA_sequences(jnlpda_data_path)->List[List[Tuple[str, str]]]:
     return data
 
 if __name__ == "__main__":
-    path = "../scibert/data/ner/JNLPBA"
-    data = read_JNLPBA_data(path)
+    path = "/home/tilo/data/germEval_2014"
+    data = read_germEval_2014_data(path)
     print()
