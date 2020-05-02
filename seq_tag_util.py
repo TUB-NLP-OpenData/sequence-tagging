@@ -9,7 +9,7 @@ def calc_seqtag_f1_scores(
 ):
     assert len(token_tag_sequences) > 0
     y_pred, targets = pred_targets_fun(token_tag_sequences)
-    _, _, f1_train = spanwise_pr_re_f1(y_pred, targets)
+    _, _, f1_train = spanlevel_pr_re_f1(y_pred, targets)
     tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, y_pred)
     return {
         "token-level": tokenlevel_scores,
@@ -58,7 +58,7 @@ def bilou2bio(tag_seq):
     return bio_tags
 
 
-def spanwise_pr_re_f1(label_pred, label_correct):
+def spanlevel_pr_re_f1(label_pred, label_correct):
     pred_counts = [
         compute_TP_P(pred, gold) for pred, gold in zip(label_pred, label_correct)
     ]

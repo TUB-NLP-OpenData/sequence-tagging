@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 from util import data_io
@@ -13,7 +14,7 @@ def plot_learncurve(data_path, files, split_name, save_dir="images"):
     data = [
         {
             "train_size": round(float(train_size), 2),
-            "f1-spanwise": score[split_name]["f1-spanwise"],
+            "f1-micro-spanlevel": score[split_name]["f1-micro-spanlevel"],
             "method": build_method_name(file),
         }
         for file in files
@@ -23,7 +24,7 @@ def plot_learncurve(data_path, files, split_name, save_dir="images"):
     num_cross_val = len(data) / len(set([d["train_size"] for d in data])) / len(methods)
     df = pd.DataFrame(data=data)
     ax = sns.boxplot(
-        x="train_size", y="f1-spanwise", hue="method", palette=["m", "g"], data=df
+        x="train_size", y="f1-micro-spanlevel", hue="method", palette=["m", "g"], data=df
     )
     # sns.despine(offset=10, trim=True)
     ax.set_title(
@@ -40,13 +41,12 @@ def plot_learncurve(data_path, files, split_name, save_dir="images"):
 
 if __name__ == "__main__":
     import seaborn as sns
-    from pathlib import Path
 
-    home = str(Path.home())
-    home = home + "/gunther"
+    home = os.environ['HOME']
     data_path = home + "/data/scierc_data"
 
+    files = ['learning_curve_spacyCrfSuite.json']
     # files = ['learning_curve_flair.json', 'learning_curve_spacyCrfSuite.json']
-    files = ["learning_curve_flair.json"]
+    # files = ["learning_curve_flair.json"]
     plot_learncurve(data_path, files, "train", save_dir=".")
     plot_learncurve(data_path, files, "test", save_dir=".")
