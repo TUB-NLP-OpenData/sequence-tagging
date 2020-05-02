@@ -1,4 +1,5 @@
 util@git+https://git@github.com/dertilo/util.git#egg=util
-flair==0.4.3
+flair
 allennlp
 sklearn-crfsuite
+seaborn
