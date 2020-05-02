@@ -9,8 +9,12 @@ from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
-from flair.embeddings import TokenEmbeddings, WordEmbeddings, StackedEmbeddings, \
-    BertEmbeddings
+from flair.embeddings import (
+    TokenEmbeddings,
+    WordEmbeddings,
+    StackedEmbeddings,
+    BertEmbeddings,
+)
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
 
@@ -24,7 +28,8 @@ from reading_seqtag_data import (
     get_JNLPBA_sequences,
     TaggedSeqsDataSet,
     read_JNLPBA_data,
-    read_germEval_2014_data)
+    read_germEval_2014_data,
+)
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 
@@ -41,11 +46,11 @@ def score_flair_tagger(
         split, data
     )
 
-    corpus = Corpus(
-        train=train_sentences, dev=dev_sentences, test=test_sentences
-    )
+    corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
 
-    embedding_types: List[TokenEmbeddings] = [BertEmbeddings("bert-base-multilingual-cased",layers='-1')]
+    embedding_types: List[TokenEmbeddings] = [
+        BertEmbeddings("bert-base-multilingual-cased", layers="-1")
+    ]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
         hidden_size=200,
@@ -147,7 +152,7 @@ if __name__ == "__main__":
 
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
-    data_supplier = partial(read_JNLPBA_data,path="../scibert/data/ner/JNLPBA")
+    data_supplier = partial(read_JNLPBA_data, path="../scibert/data/ner/JNLPBA")
     # data_supplier = partial(read_germEval_2014_data,path="/docker-share/data/germEval_2014")
     dataset = data_supplier()
     num_folds = 1
@@ -162,8 +167,12 @@ if __name__ == "__main__":
         ]
         kwargs_builder_fun = kwargs_builder
     else:
-        splits = [{dsname: list(range(len(getattr(dataset, dsname)))) for dsname in
-                   ['train', 'dev', 'test']}] * num_folds
+        splits = [
+            {
+                dsname: list(range(len(getattr(dataset, dsname))))
+                for dsname in ["train", "dev", "test"]
+            }
+        ] * num_folds
         kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
 
     start = time()
