@@ -1,4 +1,5 @@
 import multiprocessing
+from collections import OrderedDict
 from functools import partial
 
 import numpy
@@ -22,23 +23,14 @@ from benchmark_spacyCrf_tagger import score_spacycrfsuite_tagger
 from mlutil.crossvalidation import calc_scores, calc_mean_and_std, ScoreTask
 
 
-def groupbykey(x: List[Dict]):
-    return {
-        k: [l for _, l in group]
-        for k, group in groupby(
-            sorted([(k, v) for d in x for k, v in d.items()], key=lambda x: x[0]),
-            key=lambda x: x[0],
-        )
-    }
-
-
-def groupbyfirst(x: Iterable[Tuple[Any, Any]]):
-    return {
-        k: [l for _, l in group]
-        for k, group in groupby(
-            sorted([(k, v) for k, v in x], key=lambda x: x[0]), key=lambda x: x[0]
-        )
-    }
+def groupandsort_by_first(tups: Iterable[Tuple[Any, Any]]):
+    by_first = lambda xy: xy[0]
+    return OrderedDict(
+        [
+            (k, [l for _, l in group])
+            for k, group in groupby(sorted(tups, key=by_first), key=by_first)
+        ]
+    )
 
 
 from pathlib import Path
@@ -62,8 +54,11 @@ def calc_write_learning_curve(
     print(
         "calculating learning-curve for %s took %0.2f seconds" % (name, time() - start)
     )
-    results = groupbyfirst(zip([train_size for train_size, _ in splits], scores))
+    results = groupandsort_by_first(
+        zip([train_size for train_size, _ in splits], scores)
+    )
     data_io.write_json(results_path + "/learning_curve_%s.json" % name, results)
+
     trainsize_to_mean_std_scores = {
         train_size: tuple_2_dict(calc_mean_and_std(m))
         for train_size, m in results.items()
@@ -139,19 +134,22 @@ def build_splits(dataset):
 
 def build_splits_single_set(data: List, num_folds):
     dataset_size = len(data)
+
     def build_split(num_train, train, test):
         splits_dict = {
-            "train": train[: num_train],
-            "dev": train[: num_train],
+            "train": train[:num_train],
+            "dev": train[:num_train],
             "test": test,
         }
         return splits_dict
 
     splits = [
-        (train_size,build_split(int(round(train_size*dataset_size)), train, test))
-        for train_size in numpy.arange(0.1, 1.0, 0.3).tolist() + [0.99]
+        (train_size, build_split(int(round(train_size * dataset_size)), train, test))
+        for train_size in numpy.arange(0.1, 1.0, 0.5).tolist() + [0.99]
         for train, test in ShuffleSplit(
-            n_splits=num_folds, test_size=int(round(0.2*dataset_size)), random_state=111
+            n_splits=num_folds,
+            test_size=int(round(0.2 * dataset_size)),
+            random_state=111,
         ).split(X=list(range(dataset_size)))
     ]
     return splits
@@ -161,14 +159,14 @@ if __name__ == "__main__":
     # data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
     data_supplier = partial(
         read_scierc_seqs,
-        jsonl_file=home + "/data/current_corrected_annotations.json",
+        jsonl_file=home + "/data/scierc_data/final_data.json",
         process_fun=char_to_token_level,
     )
     # data_supplier= lambda: read_JNLPBA_data(home + "../scibert/data/ner/JNLPBA")
 
     dataset = data_supplier()
 
-    num_folds = 3
+    num_folds = 2
     # splits = build_splits(dataset,num_folds)
     splits = build_splits_single_set(dataset, num_folds)
     print("got %d evaluations to calculate" % len(splits))
