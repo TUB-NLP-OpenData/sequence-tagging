@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 import sys
 from functools import partial
 
@@ -40,9 +41,6 @@ def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
     }
 
 
-from pathlib import Path
-home = str(Path.home())
-
 
 from json import encoder
 
@@ -73,10 +71,10 @@ def build_kwargs(data_supplier, params):
 
 
 if __name__ == "__main__":
-    # data_path = home + '/data/scierc_data/processed_data/json/'
+
     data_supplier = partial(
         read_scierc_seqs,
-        jsonl_file=home + "/data/current_corrected_annotations.json",
+        jsonl_file=os.environ['HOME'] + "/data/scierc_data/final_data.json",
         process_fun=char_to_token_level,
     )
 
