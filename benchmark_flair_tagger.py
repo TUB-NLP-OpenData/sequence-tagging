@@ -69,7 +69,6 @@ def score_flair_tagger(
     assert not os.path.isdir(save_path)
     trainer.train(
         base_path=save_path,
-        tensorboard_comment=process_name,
         learning_rate=0.001,
         mini_batch_size=8,
         max_epochs=params["max_epochs"],
