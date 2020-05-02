@@ -10,7 +10,7 @@ import spacy
 from spacy.tokenizer import Tokenizer
 
 from reading_seqtag_data import read_JNLPBA_data
-from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenlevel_scores
+from seq_tag_util import bilou2bio, spanlevel_pr_re_f1, calc_seqtag_tokenlevel_scores
 
 
 class SpacyCrfSuiteTagger(object):
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         "train-f1-micro: %0.2f"
         % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-micro"]
     )
-    _, _, f1 = spanwise_pr_re_f1(y_pred, targets)
+    _, _, f1 = spanlevel_pr_re_f1(y_pred, targets)
     pprint("train-f1-spanwise: %0.2f" % f1)
 
     y_pred = tagger.predict([[token for token, tag in datum] for datum in test_data])
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         "test-f1-micro: %0.2f"
         % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-micro"]
     )
-    _, _, f1 = spanwise_pr_re_f1(y_pred, targets)
+    _, _, f1 = spanlevel_pr_re_f1(y_pred, targets)
     pprint("test-f1-spanwise: %0.2f" % f1)
 
 """

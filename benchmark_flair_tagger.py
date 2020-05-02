@@ -24,7 +24,7 @@ from reading_seqtag_data import (
     get_JNLPBA_sequences,
     TaggedSeqsDataSet,
     read_JNLPBA_data,
-)
+    read_germEval_2014_data)
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
 
@@ -34,7 +34,7 @@ def score_flair_tagger(
     from flair.trainers import ModelTrainer, trainer
 
     logger = trainer.log
-    logger.setLevel(logging.WARNING)
+    # logger.setLevel(logging.WARNING)
     # torch.cuda.empty_cache()
 
     train_sentences, dev_sentences, test_sentences = train_dev_test_sentences_builder(
@@ -45,17 +45,17 @@ def score_flair_tagger(
         train=train_sentences, dev=dev_sentences, test=test_sentences
     )
 
-    embedding_types: List[TokenEmbeddings] = [BertEmbeddings("bert-base-uncased",layers='-1')]
+    embedding_types: List[TokenEmbeddings] = [BertEmbeddings("bert-base-multilingual-cased",layers='-1')]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
         hidden_size=200,
-        rnn_layers=2,
+        rnn_layers=1,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
         tag_type=TAG_TYPE,
         locked_dropout=0.01,
-        dropout=0.5,
-        use_crf=True,
+        dropout=0.1,
+        use_crf=False,
     )
     trainer: ModelTrainer = ModelTrainer(
         tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=True
@@ -149,6 +149,7 @@ if __name__ == "__main__":
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
     data_supplier = partial(read_JNLPBA_data,path="../scibert/data/ner/JNLPBA")
+    # data_supplier = partial(read_germEval_2014_data,path="/docker-share/data/germEval_2014")
     dataset = data_supplier()
     num_folds = 1
     do_crossval = False
