@@ -3,14 +3,14 @@ from collections import Counter
 from pprint import pprint
 from time import time
 from typing import List, Tuple
+
+import flair.datasets
 import sklearn_crfsuite
 import spacy
-import flair.datasets
 from spacy.tokenizer import Tokenizer
 
-from reading_scierc_data import read_scierc_seqs
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data
-from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenwise_scores
+from reading_seqtag_data import read_JNLPBA_data
+from seq_tag_util import bilou2bio, spanwise_pr_re_f1, calc_seqtag_tokenlevel_scores
 
 
 class SpacyCrfSuiteTagger(object):
@@ -140,11 +140,11 @@ if __name__ == "__main__":
     pprint(Counter([t for tags in targets for t in tags]))
     pprint(
         "train-f1-macro: %0.2f"
-        % calc_seqtag_tokenwise_scores(targets, y_pred)["f1-macro"]
+        % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-macro"]
     )
     pprint(
         "train-f1-micro: %0.2f"
-        % calc_seqtag_tokenwise_scores(targets, y_pred)["f1-micro"]
+        % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-micro"]
     )
     _, _, f1 = spanwise_pr_re_f1(y_pred, targets)
     pprint("train-f1-spanwise: %0.2f" % f1)
@@ -154,11 +154,11 @@ if __name__ == "__main__":
     targets = [bilou2bio([tag for token, tag in datum]) for datum in test_data]
     pprint(
         "test-f1-macro: %0.2f"
-        % calc_seqtag_tokenwise_scores(targets, y_pred)["f1-macro"]
+        % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-macro"]
     )
     pprint(
         "test-f1-micro: %0.2f"
-        % calc_seqtag_tokenwise_scores(targets, y_pred)["f1-micro"]
+        % calc_seqtag_tokenlevel_scores(targets, y_pred)["f1-micro"]
     )
     _, _, f1 = spanwise_pr_re_f1(y_pred, targets)
     pprint("test-f1-spanwise: %0.2f" % f1)
