@@ -15,14 +15,13 @@ from seq_tag_util import bilou2bio, spanlevel_pr_re_f1, calc_seqtag_tokenlevel_s
 
 class SpacyCrfSuiteTagger(object):
     def __init__(
-        self,
-        nlp=spacy.load("en_core_web_sm", disable=["parser"]),
-        verbose=False,
-        c1=None,
-        c2=None,
+        self, nlp=None, verbose=False, c1=None, c2=None,
     ):
+
         self.c1, self.c2 = c1, c2
-        self.spacy_nlp = nlp
+        self.spacy_nlp = (
+            spacy.load("en_core_web_sm", disable=["parser"]) if nlp is None else nlp
+        )
         infix_re = re.compile(r"\s")
         self.spacy_nlp.tokenizer = Tokenizer(
             nlp.vocab, infix_finditer=infix_re.finditer
