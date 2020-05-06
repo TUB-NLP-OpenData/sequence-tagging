@@ -39,7 +39,7 @@ def score_flair_tagger(
     from flair.trainers import ModelTrainer, trainer
 
     logger = trainer.log
-    # logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.WARNING)
     # torch.cuda.empty_cache()
 
     train_sentences, dev_sentences, test_sentences = train_dev_test_sentences_builder(
@@ -49,21 +49,22 @@ def score_flair_tagger(
     corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
 
     embedding_types: List[TokenEmbeddings] = [
-        BertEmbeddings("bert-base-multilingual-cased", layers="-1")
+        WordEmbeddings("glove"),
+        # BertEmbeddings("bert-base-multilingual-cased", layers="-1")
     ]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
-        hidden_size=200,
+        hidden_size=64,
         rnn_layers=1,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
         tag_type=TAG_TYPE,
         locked_dropout=0.01,
-        dropout=0.1,
+        dropout=0.01,
         use_crf=False,
     )
     trainer: ModelTrainer = ModelTrainer(
-        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=True
+        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=False,
     )
     # print(tagger)
     # pprint([p_name for p_name, p in tagger.named_parameters()])
@@ -75,7 +76,7 @@ def score_flair_tagger(
     trainer.train(
         base_path=save_path,
         learning_rate=0.001,
-        mini_batch_size=8,
+        mini_batch_size=128,
         max_epochs=params["max_epochs"],
         patience=999,
         save_final_model=False,
@@ -152,13 +153,14 @@ if __name__ == "__main__":
 
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
-    data_supplier = partial(read_JNLPBA_data, path="../scibert/data/ner/JNLPBA")
-    # data_supplier = partial(read_germEval_2014_data,path="/docker-share/data/germEval_2014")
+    data_supplier = partial(
+        read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+    )
     dataset = data_supplier()
-    num_folds = 1
-    do_crossval = False
+    num_folds = 3
+    eval_mode = "crosseval"
 
-    if do_crossval:
+    if eval_mode == "crosseval":
         sentences = dataset.train + dataset.dev + dataset.test
         splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
         splits = [
@@ -166,6 +168,17 @@ if __name__ == "__main__":
             for train, test in splitter.split(X=range(len(sentences)))
         ]
         kwargs_builder_fun = kwargs_builder
+    elif eval_mode == "test-preserving-crosseval":
+        splitter = ShuffleSplit(n_splits=num_folds, train_size=0.8, random_state=111)
+        splits = [
+            {
+                "train": train,
+                "dev": list(range(len(dataset.dev))),
+                "test": list(range(len(dataset.test))),
+            }
+            for train, _ in splitter.split(X=range(len(dataset.train)))
+        ]
+        kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
     else:
         splits = [
             {
@@ -176,9 +189,9 @@ if __name__ == "__main__":
         kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
 
     start = time()
-    n_jobs = 0  # min(5, num_folds)
+    n_jobs = min(5, num_folds)
 
-    kwargs_kwargs = {"params": {"max_epochs": 40}, "data_supplier": data_supplier}
+    kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
     task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     print(
@@ -186,22 +199,3 @@ if __name__ == "__main__":
         % (num_folds, n_jobs, time() - start)
     )
     pprint(m_scores_std_scores)
-
-
-"""
-# on gunther and JNLPBA-data
-flair-tagger 1 folds with 0 jobs in PARALLEL took: 1663.84 seconds
-40 epochs; mini_batch_size=128; Adam
-{'m_scores': {'test': {'f1-macro': 0.7668117883567187,
-                       'f1-micro': 0.9197922774101684,
-                       'f1-spanwise': 0.711168164313222},
-              'train': {'f1-macro': 0.8357444380180088,
-                        'f1-micro': 0.9443315056938001,
-                        'f1-spanwise': 0.7834623331299312}},
- 'std_scores': {'test': {'f1-macro': 0.0, 'f1-micro': 0.0, 'f1-spanwise': 0.0},
-                'train': {'f1-macro': 0.0,
-                          'f1-micro': 0.0,
-                          'f1-spanwise': 0.0}}}
-
-
-"""
