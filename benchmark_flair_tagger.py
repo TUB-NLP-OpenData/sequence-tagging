@@ -145,6 +145,39 @@ def kwargs_builder(params, data_supplier):
     }
 
 
+def shufflesplit_trainset_only(dataset, num_folds):
+    splitter = ShuffleSplit(n_splits=num_folds, train_size=0.8, random_state=111)
+    splits = [
+        {
+            "train": train,
+            "dev": list(range(len(dataset.dev))),
+            "test": list(range(len(dataset.test))),
+        }
+        for train, _ in splitter.split(X=range(len(dataset.train)))
+    ]
+    return kwargs_builder_maintaining_train_dev_test, splits
+
+
+def preserve_train_dev_test(dataset, num_folds):
+    splits = [
+        {
+            dsname: list(range(len(getattr(dataset, dsname))))
+            for dsname in ["train", "dev", "test"]
+        }
+    ] * num_folds
+    return kwargs_builder_maintaining_train_dev_test, splits
+
+
+def crosseval_on_concat_dataset(dataset, num_folds):
+    sentences = dataset.train + dataset.dev + dataset.test
+    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
+    splits = [
+        {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
+        for train, test in splitter.split(X=range(len(sentences)))
+    ]
+    return kwargs_builder, splits
+
+
 if __name__ == "__main__":
     from pathlib import Path
 
@@ -158,35 +191,15 @@ if __name__ == "__main__":
     )
     dataset = data_supplier()
     num_folds = 3
+    # eval_mode = "test-preserving-crosseval"
     eval_mode = "crosseval"
 
     if eval_mode == "crosseval":
-        sentences = dataset.train + dataset.dev + dataset.test
-        splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-        splits = [
-            {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
-            for train, test in splitter.split(X=range(len(sentences)))
-        ]
-        kwargs_builder_fun = kwargs_builder
+        kwargs_builder_fun, splits = crosseval_on_concat_dataset(dataset, num_folds)
     elif eval_mode == "test-preserving-crosseval":
-        splitter = ShuffleSplit(n_splits=num_folds, train_size=0.8, random_state=111)
-        splits = [
-            {
-                "train": train,
-                "dev": list(range(len(dataset.dev))),
-                "test": list(range(len(dataset.test))),
-            }
-            for train, _ in splitter.split(X=range(len(dataset.train)))
-        ]
-        kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
+        kwargs_builder_fun, splits = shufflesplit_trainset_only(dataset, num_folds)
     else:
-        splits = [
-            {
-                dsname: list(range(len(getattr(dataset, dsname))))
-                for dsname in ["train", "dev", "test"]
-            }
-        ] * num_folds
-        kwargs_builder_fun = kwargs_builder_maintaining_train_dev_test
+        kwargs_builder_fun, splits = preserve_train_dev_test(dataset, num_folds)
 
     start = time()
     n_jobs = min(5, num_folds)
