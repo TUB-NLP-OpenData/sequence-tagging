@@ -117,17 +117,18 @@ if __name__ == "__main__":
     dataset_size = len(sentences)
 
     num_folds = 3
-    # splits = build_splits(dataset,num_folds)
-    splits = crosseval_on_concat_dataset_trainsize_range(
-        dataset_size, num_folds=2, test_size=0.2, starts=0.05, ends=0.1, steps=0.05
-    )
-    print("got %d evaluations to calculate" % len(splits))
+    for num_workers in [1, 2, 3, 4]:
+        # splits = build_splits(dataset,num_folds)
+        splits = crosseval_on_concat_dataset_trainsize_range(
+            dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
+        )
+        print("got %d evaluations to calculate" % len(splits))
 
-    calc_write_learning_curve(
-        "flair-minimal-test",
-        kwargs_builder,
-        score_flair_tagger,
-        {"params": {"max_epochs": 2}, "data_supplier": data_supplier},
-        splits,
-        2,
-    )
+        calc_write_learning_curve(
+            "flair-%d-workers" % num_workers,
+            kwargs_builder,
+            score_flair_tagger,
+            {"params": {"max_epochs": 20}, "data_supplier": data_supplier},
+            splits,
+            n_jobs=num_workers,
+        )
