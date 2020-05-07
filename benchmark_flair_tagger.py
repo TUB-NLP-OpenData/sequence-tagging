@@ -200,7 +200,7 @@ if __name__ == "__main__":
         ),
     }
 
-    for exp_name, (kw_fun, splits) in experiment.items():
+    for exp_name, (splits,kw_fun) in experiment.items():
         run_experiment(exp_name, kw_fun, splits)
 
     """
