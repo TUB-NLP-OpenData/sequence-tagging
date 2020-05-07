@@ -13,11 +13,17 @@ from flair.embeddings import (
     TokenEmbeddings,
     WordEmbeddings,
     StackedEmbeddings,
-    BertEmbeddings,
 )
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
+from util import data_io
 
+from eval_jobs import (
+    shufflesplit_trainset_only,
+    crosseval_on_concat_dataset,
+    preserve_train_dev_test,
+    TrainDevTest,
+)
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import (
     TAG_TYPE,
@@ -25,10 +31,8 @@ from reading_scierc_data import (
     build_flair_sentences_from_sequences,
 )
 from reading_seqtag_data import (
-    get_JNLPBA_sequences,
     TaggedSeqsDataSet,
     read_JNLPBA_data,
-    read_germEval_2014_data,
 )
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
@@ -145,37 +149,25 @@ def kwargs_builder(params, data_supplier):
     }
 
 
-def shufflesplit_trainset_only(dataset, num_folds):
-    splitter = ShuffleSplit(n_splits=num_folds, train_size=0.8, random_state=111)
-    splits = [
-        {
-            "train": train,
-            "dev": list(range(len(dataset.dev))),
-            "test": list(range(len(dataset.test))),
-        }
-        for train, _ in splitter.split(X=range(len(dataset.train)))
-    ]
-    return kwargs_builder_maintaining_train_dev_test, splits
+def run_experiment(exp_name, kwargs_builder_fun, splits):
+    start = time()
+    num_folds = len(splits)
+    n_jobs = min(5, num_folds)
 
-
-def preserve_train_dev_test(dataset, num_folds):
-    splits = [
-        {
-            dsname: list(range(len(getattr(dataset, dsname))))
-            for dsname in ["train", "dev", "test"]
-        }
-    ] * num_folds
-    return kwargs_builder_maintaining_train_dev_test, splits
-
-
-def crosseval_on_concat_dataset(dataset, num_folds):
-    sentences = dataset.train + dataset.dev + dataset.test
-    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [
-        {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
-        for train, test in splitter.split(X=range(len(sentences)))
-    ]
-    return kwargs_builder, splits
+    kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
+    task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
+    duration = time() - start
+    print(
+        "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
+        % (num_folds, n_jobs, duration)
+    )
+    exp_results = {
+        "scores": m_scores_std_scores,
+        "overall-time": duration,
+        "num-folds": num_folds,
+    }
+    data_io.write_json("%s.json" % exp_name, exp_results)
 
 
 if __name__ == "__main__":
@@ -191,24 +183,27 @@ if __name__ == "__main__":
     )
     dataset = data_supplier()
     num_folds = 3
-    # eval_mode = "test-preserving-crosseval"
-    eval_mode = "crosseval"
 
-    if eval_mode == "crosseval":
-        kwargs_builder_fun, splits = crosseval_on_concat_dataset(dataset, num_folds)
-    elif eval_mode == "test-preserving-crosseval":
-        kwargs_builder_fun, splits = shufflesplit_trainset_only(dataset, num_folds)
-    else:
-        kwargs_builder_fun, splits = preserve_train_dev_test(dataset, num_folds)
+    traindevtest = TrainDevTest(dataset.train, dataset.dev, dataset.traindevtest)
+    experiment = {
+        "crosseval": (
+            crosseval_on_concat_dataset(traindevtest, num_folds),
+            kwargs_builder,
+        ),
+        "dev-test-preserving": (
+            shufflesplit_trainset_only(traindevtest, num_folds),
+            kwargs_builder_maintaining_train_dev_test,
+        ),
+        "train-dev-test-preserving": (
+            preserve_train_dev_test(traindevtest, num_folds),
+            kwargs_builder_maintaining_train_dev_test,
+        ),
+    }
 
-    start = time()
-    n_jobs = min(5, num_folds)
+    for exp_name, (kw_fun, splits) in experiment.items():
+        run_experiment(exp_name, kw_fun, splits)
 
-    kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
-    task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
-    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
-    print(
-        "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
-        % (num_folds, n_jobs, time() - start)
-    )
-    pprint(m_scores_std_scores)
+    """
+    flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds
+    {'m_scores': {'test': {'f1-micro-spanlevel': 0.6571898523684608,
+    """
