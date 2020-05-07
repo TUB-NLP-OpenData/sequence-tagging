@@ -38,9 +38,7 @@ def crosseval_on_concat_dataset(
     return splits
 
 
-def preserve_train_dev_test(
-    dataset: TrainDevTest, num_folds: int=5
-) -> List[EvalJob]:
+def preserve_train_dev_test(dataset: TrainDevTest, num_folds: int = 5) -> List[EvalJob]:
     splits = [
         {
             dsname: list(range(len(getattr(dataset, dsname))))

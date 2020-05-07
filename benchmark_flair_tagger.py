@@ -184,7 +184,7 @@ if __name__ == "__main__":
     dataset = data_supplier()
     num_folds = 3
 
-    traindevtest = TrainDevTest(dataset.train, dataset.dev, dataset.traindevtest)
+    traindevtest = TrainDevTest(dataset.train, dataset.dev, dataset.test)
     experiment = {
         "crosseval": (
             crosseval_on_concat_dataset(traindevtest, num_folds),
@@ -206,4 +206,8 @@ if __name__ == "__main__":
     """
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds
     {'m_scores': {'test': {'f1-micro-spanlevel': 0.6571898523684608,
+    
+    crosseval
+    flair-tagger 3 folds with 3 jobs in PARALLEL took: 4383.46 seconds
+    {'m_scores': {'test': {'f1-micro-spanlevel': 0.663033472415799,
     """
