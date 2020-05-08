@@ -32,7 +32,7 @@ def shufflesplit_trainset_only(
 
 def shufflesplit_trainset_only_trainsize_range(
     dataset: TrainDevTest, num_folds=3, starts=0.1, ends=1.0, steps=0.3
-)->List[Tuple[float,EvalJob]]:
+) -> List[Tuple[float, EvalJob]]:
     train_sizes = build_train_sizes(starts, ends, steps)
     splits = [
         (train_size, _build_split_devtest_fix(train, dataset))
@@ -61,10 +61,11 @@ def crosseval_on_concat_dataset(
     return splits
 
 
-def _build_split_numtrain(num_train, train, test):
+def _build_split_numtrain(train_proportion, not_test, test):
+    num_train = int(round(train_proportion * len(not_test)))
     splits_dict = {
-        "train": train[:num_train],
-        "dev": train[:num_train],
+        "train": not_test[:num_train],
+        "dev": not_test[:num_train],
         "test": test,
     }
     return splits_dict
@@ -72,16 +73,19 @@ def _build_split_numtrain(num_train, train, test):
 
 def crosseval_on_concat_dataset_trainsize_range(
     dataset_size, num_folds=3, test_size=0.2, starts=0.1, ends=1.0, steps=0.3
-)->List[Tuple[float,EvalJob]]:
+) -> List[Tuple[float, EvalJob]]:
     train_sizes = build_train_sizes(starts, ends, steps)
+
+    def calc_proportion_of_overall_dataset(rel_train_size, not_test):
+        return rel_train_size * (len(not_test) / dataset_size)
 
     splits = [
         (
-            train_size,
-            _build_split_numtrain(int(round(train_size * dataset_size)), train, test),
+            calc_proportion_of_overall_dataset(rel_train_size, not_test),
+            _build_split_numtrain(rel_train_size, not_test, test),
         )
-        for train_size in train_sizes
-        for train, test in ShuffleSplit(
+        for rel_train_size in train_sizes
+        for not_test, test in ShuffleSplit(
             n_splits=num_folds, test_size=test_size, random_state=111,
         ).split(X=list(range(dataset_size)))
     ]
