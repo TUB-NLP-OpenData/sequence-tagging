@@ -72,21 +72,6 @@ def get_scierc_data_as_flair_sentences(data_path):
     return sentences
 
 
-def build_tag_dict(sequences: List[List[Tuple[str, str]]], tag_type):
-    sentences = build_flair_sentences_from_sequences(sequences)
-    corpus = Corpus(train=sentences, dev=[], test=[], name="scierc")
-
-    # Make the tag dictionary
-    tag_dictionary: Dictionary = Dictionary()
-    # tag_dictionary.add_item("O")
-    for sentence in corpus.get_all_sentences():
-        for token in sentence.tokens:
-            tag_dictionary.add_item(token.get_tag(tag_type).value)
-    # tag_dictionary.add_item("<START>")
-    # tag_dictionary.add_item("<STOP>")
-    return corpus.make_tag_dictionary(tag_type)
-
-
 def build_flair_sentences_from_sequences(
     sequences: List[List[Tuple[str, str]]]
 ) -> List[Sentence]:

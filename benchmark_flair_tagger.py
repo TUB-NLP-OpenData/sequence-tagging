@@ -5,7 +5,7 @@ import shutil
 from functools import partial
 from pprint import pprint
 from time import time
-from typing import List
+from typing import List, Tuple
 
 import torch
 from flair.data import Sentence, Corpus
@@ -27,7 +27,6 @@ from eval_jobs import (
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import (
     TAG_TYPE,
-    build_tag_dict,
     build_flair_sentences_from_sequences,
 )
 from reading_seqtag_data import (
@@ -36,6 +35,10 @@ from reading_seqtag_data import (
 )
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
+def build_tag_dict(sequences: List[List[Tuple[str, str]]], tag_type):
+    sentences = build_flair_sentences_from_sequences(sequences)
+    corpus = Corpus(train=sentences, dev=[], test=[])
+    return corpus.make_tag_dictionary(tag_type)
 
 def score_flair_tagger(
     split, data, tag_dictionary, params, train_dev_test_sentences_builder
