@@ -10,7 +10,11 @@ from mlutil.crossvalidation import (
     ScoreTask,
 )  # TODO(tilo) must be imported before numpy
 
-from eval_jobs import crosseval_on_concat_dataset_trainsize_range
+from eval_jobs import (
+    crosseval_on_concat_dataset_trainsize_range,
+    shufflesplit_trainset_only_trainsize_range,
+    TrainDevTest,
+)
 import numpy
 from itertools import groupby
 from time import time
@@ -80,16 +84,18 @@ def calc_write_learning_curve(
     )
 
 
-def spacyCrfSuite_kwargs_supplier(params, data_supplier):
-    data: TaggedSeqsDataSet = data_supplier()
-    return {
-        "data": data,
-        "params": params,
-        "datasets_builder_fun": lambda split, data: {
-            dataset_name: [getattr(data, dataset_name)[i] for i in indizes]
-            for dataset_name, indizes in split.items()
-        },
-    }
+def learn_curve_spacy_crf(name,splits, build_kwargs_fun):
+
+    num_workers = min(multiprocessing.cpu_count() - 1, len(splits))
+    print("got %d evaluations to calculate" % len(splits))
+    calc_write_learning_curve(
+        "spacy-crf-%s" % name,
+        build_kwargs_fun,
+        spacy_crf.score_spacycrfsuite_tagger,
+        {"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
+        splits,
+        n_jobs=num_workers,
+    )
 
 
 if __name__ == "__main__":
@@ -124,17 +130,22 @@ if __name__ == "__main__":
     #     )
 
     import benchmark_spacyCrf_tagger as spacy_crf
-    splits = crosseval_on_concat_dataset_trainsize_range(
-        dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
-    )
-    num_workers = min(multiprocessing.cpu_count() - 1, len(splits))
-    print("got %d evaluations to calculate" % len(splits))
 
-    calc_write_learning_curve(
-        "spacy-crf-%d-workers" % num_workers,
-        spacy_crf.build_kwargs,
-        spacy_crf.score_spacycrfsuite_tagger,
-        {"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
-        splits,
-        n_jobs=num_workers,
+    # learn_curve_spacy_crf(
+    #     splits=crosseval_on_concat_dataset_trainsize_range(
+    #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
+    #     ),
+    #     build_kwargs_fun=spacy_crf.build_kwargs,
+    # )
+
+    learn_curve_spacy_crf(
+        name = 'test-preserving',
+        splits=shufflesplit_trainset_only_trainsize_range(
+            TrainDevTest(dataset.train, dataset.dev, dataset.test),
+            num_folds=3,
+            starts=0.2,
+            ends=0.8,
+            steps=0.2,
+        ),
+        build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
     )
