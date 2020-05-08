@@ -1,6 +1,9 @@
 import os
 from collections import OrderedDict
 from functools import partial
+
+from torch import multiprocessing
+
 from mlutil.crossvalidation import (
     calc_scores,
     calc_mean_and_std,
@@ -89,18 +92,6 @@ def spacyCrfSuite_kwargs_supplier(params, data_supplier):
     }
 
 
-def spacyCrfSuite_kwargs_supplier_single_set(params, data_supplier):
-    data: List = data_supplier()
-    return {
-        "data": data,
-        "params": params,
-        "datasets_builder_fun": lambda split, data: {
-            dataset_name: [data[i] for i in indizes]
-            for dataset_name, indizes in split.items()
-        },
-    }
-
-
 if __name__ == "__main__":
     # data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
     # data_supplier = partial(
@@ -117,18 +108,33 @@ if __name__ == "__main__":
     dataset_size = len(sentences)
 
     num_folds = 3
-    for num_workers in [1, 2, 3, 4]:
-        # splits = build_splits(dataset,num_folds)
-        splits = crosseval_on_concat_dataset_trainsize_range(
-            dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
-        )
-        print("got %d evaluations to calculate" % len(splits))
+    # for num_workers in [1, 2, 3, 4]:
+    #     splits = crosseval_on_concat_dataset_trainsize_range(
+    #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
+    #     )
+    #     print("got %d evaluations to calculate" % len(splits))
+    #
+    #     calc_write_learning_curve(
+    #         "flair-%d-workers" % num_workers,
+    #         kwargs_builder,
+    #         score_flair_tagger,
+    #         {"params": {"max_epochs": 20}, "data_supplier": data_supplier},
+    #         splits,
+    #         n_jobs=num_workers,
+    #     )
 
-        calc_write_learning_curve(
-            "flair-%d-workers" % num_workers,
-            kwargs_builder,
-            score_flair_tagger,
-            {"params": {"max_epochs": 20}, "data_supplier": data_supplier},
-            splits,
-            n_jobs=num_workers,
-        )
+    import benchmark_spacyCrf_tagger as spacy_crf
+    splits = crosseval_on_concat_dataset_trainsize_range(
+        dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
+    )
+    num_workers = min(multiprocessing.cpu_count() - 1, len(splits))
+    print("got %d evaluations to calculate" % len(splits))
+
+    calc_write_learning_curve(
+        "spacy-crf-%d-workers" % num_workers,
+        spacy_crf.build_kwargs,
+        spacy_crf.score_spacycrfsuite_tagger,
+        {"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
+        splits,
+        n_jobs=num_workers,
+    )
