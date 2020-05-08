@@ -105,16 +105,17 @@ if __name__ == "__main__":
         train_sizes=[0.1,0.2],
     )
 
-    # exp = Experiment(
-    #     "flair-test-preserving",
-    #     TRAINONLY,
-    #     splits=splits,
-    #     build_kwargs_fun=flair_seqtag.kwargs_builder_maintaining_train_dev_test,
-    #     scorer_fun=flair_seqtag.score_flair_tagger,
-    #     data_supplier=data_supplier,
-    #     params={"params": {"max_epochs": 2}, "data_supplier": data_supplier},
-    # )
-    # calc_write_learning_curve(exp, max_num_workers=3)
+    exp = Experiment(
+        "flair-test-preserving",
+        TRAINONLY,
+        num_folds=num_folds,
+        splits=splits,
+        build_kwargs_fun=flair_seqtag.kwargs_builder_maintaining_train_dev_test,
+        scorer_fun=flair_seqtag.score_flair_tagger,
+        data_supplier=data_supplier,
+        params={"params": {"max_epochs": 2}, "data_supplier": data_supplier},
+    )
+    calc_write_learning_curve(exp, max_num_workers=3)
 
     import benchmark_spacyCrf_tagger as spacy_crf
 

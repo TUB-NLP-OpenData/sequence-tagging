@@ -17,7 +17,7 @@ from flair.embeddings import (
 )
 from flair.models import SequenceTagger
 
-from splitting_util import split_data, split_splits
+from experiment_util import split_data, split_splits
 from util import data_io
 
 from eval_jobs import (
@@ -123,7 +123,7 @@ def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
     def train_dev_test_sentences_builder(split, data):
         return [
             build_flair_sentences_from_sequences(data_split)
-            for split_name, data_split in split_splits(split, data._asdict())
+            for split_name, data_split in split_splits(split, data._asdict()).items()
         ]
 
     return {
@@ -211,11 +211,11 @@ if __name__ == "__main__":
     """
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds
     {'m_scores': {'test': {'f1-micro-spanlevel': 0.6571898523684608,
-    
+
     crosseval 20 epochs
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4383.46 seconds
     {'m_scores': {'test': {'f1-micro-spanlevel': 0.663033472415799,
-    
+
     crosseval with Bert, 2 epochs
       "overall-time": 2111.6508309841156,
       "num-folds": 3
