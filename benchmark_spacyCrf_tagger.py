@@ -1,13 +1,14 @@
-import multiprocessing
 import os
 import sys
 from functools import partial
+from pprint import pprint
 
-from reading_scierc_data import read_scierc_seqs, char_to_token_level
-from reading_seqtag_data import get_JNLPBA_sequences
+from torch import multiprocessing
+
+from eval_jobs import crosseval_on_concat_dataset, TrainDevTest
+from reading_seqtag_data import read_JNLPBA_data
+from splitting_util import split_data
 from util import data_io
-
-sys.path.append(".")
 
 from time import time
 
@@ -16,7 +17,6 @@ from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
 from sklearn.model_selection import ShuffleSplit
 
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
-from pprint import pprint
 
 
 def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
@@ -41,56 +41,45 @@ def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
     }
 
 
-
 from json import encoder
 
 encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
 
-# def get_data(data_path):
-#     return read_scierc_seqs(
-#         jsonl_file=data_path + "/data/current_corrected_annotations.json",
-#         process_fun=char_to_token_level)
-#     # return get_JNLPBA_sequences(data_path)
-
-
 def build_kwargs(data_supplier, params):
-    def datasets_builder_fun(split, data):
-        return {
-            dataset_name: [data[i] for i in indizes]
-            for dataset_name, indizes in split.items()
-        }
+    dataset: TrainDevTest = data_supplier()
+    data = dataset.train + dataset.dev + dataset.test
 
-
-    data = data_supplier()
     return {
         "params": params,
         "data": data,
-        "datasets_builder_fun": datasets_builder_fun,
+        "datasets_builder_fun": split_data,
     }
+
+
+def load_traindevtest_dataset(path):
+    ds = read_JNLPBA_data(path)
+    return TrainDevTest(ds.train, ds.dev, ds.test)
 
 
 if __name__ == "__main__":
 
     data_supplier = partial(
-        read_scierc_seqs,
-        jsonl_file=os.environ['HOME'] + "/data/scierc_data/final_data.json",
-        process_fun=char_to_token_level,
+        load_traindevtest_dataset, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
     )
+    dataset = data_supplier()
+    num_folds = 3
 
-    sentences = data_supplier()
-    num_folds = 5
-    splitter = ShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=111)
-    splits = [
-        {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
-        for train, test in splitter.split(X=range(len(sentences)))
-    ]
+    splits = crosseval_on_concat_dataset(dataset, num_folds, test_size=0.2)
 
     start = time()
     task = ScoreTask(
         score_fun=score_spacycrfsuite_tagger,
-        kwargs_builder=build_kwargs,
-        builder_kwargs={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
+        build_kwargs_fun=build_kwargs,
+        builder_kwargs={
+            "params": {"c1": 0.5, "c2": 0.0},
+            "data_supplier": data_supplier,
+        },
     )
     num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
@@ -98,9 +87,8 @@ if __name__ == "__main__":
         "spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds"
         % (num_folds, num_workers, time() - start)
     )
-    data_io.write_json('scores.json',m_scores_std_scores)
-    # pprint(m_scores_std_scores)
-
+    pprint(m_scores_std_scores)
+    data_io.write_json("spacy-crf-scores.json", m_scores_std_scores)
 
 """
 #############################################################################
