@@ -31,9 +31,8 @@ def shufflesplit_trainset_only(
 
 
 def shufflesplit_trainset_only_trainsize_range(
-    dataset: TrainDevTest, num_folds=3, starts=0.1, ends=1.0, steps=0.3
+    dataset: TrainDevTest, num_folds=3, train_sizes=[0.1,0.5,0.99]
 ) -> List[Tuple[float, EvalJob]]:
-    train_sizes = build_train_sizes(starts, ends, steps)
     splits = [
         (train_size, _build_split_devtest_fix(train, dataset))
         for train_size in train_sizes

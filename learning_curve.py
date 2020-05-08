@@ -47,7 +47,7 @@ def tuple_2_dict(t):
 def calc_write_learning_curve(
     exp: Experiment, results_path=home + "/data/seqtag_results", max_num_workers=40
 ):
-    num_workers = min(min(max_num_workers, multiprocessing.cpu_count() - 1), num_folds)
+    num_workers = min(min(max_num_workers, multiprocessing.cpu_count() - 1), exp.num_folds)
 
     name = exp.name
     print("got %d evaluations to calculate" % len(exp.splits))
@@ -63,7 +63,7 @@ def calc_write_learning_curve(
     meta_data = {
         "duration": duration,
         "num-workers": num_workers,
-        "experiment":exp.__dict__,
+        "experiment": str(exp),
     }
     data_io.write_json(results_path + "/meta_datas.json", meta_data)
     print("calculating learning-curve for %s took %0.2f seconds" % (name, duration))
@@ -96,21 +96,25 @@ if __name__ == "__main__":
     # sentences = dataset.train + dataset.dev + dataset.test
     # dataset_size = len(sentences)
 
-    num_folds = 3
-    # for num_workers in [1, 2, 3, 4]:
-    #     splits = crosseval_on_concat_dataset_trainsize_range(
-    #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
-    #     )
-    #     print("got %d evaluations to calculate" % len(splits))
-    #
-    #     calc_write_learning_curve(
-    #         "flair-%d-workers" % num_workers,
-    #         kwargs_builder,
-    #         score_flair_tagger,
-    #         {"params": {"max_epochs": 20}, "data_supplier": data_supplier},
-    #         splits,
-    #         n_jobs=num_workers,
-    #     )
+    import benchmark_flair_tagger as flair_seqtag
+
+    num_folds = 2
+    splits = shufflesplit_trainset_only_trainsize_range(
+        TrainDevTest(dataset.train, dataset.dev, dataset.test),
+        num_folds=num_folds,
+        train_sizes=[0.1,0.2],
+    )
+
+    # exp = Experiment(
+    #     "flair-test-preserving",
+    #     TRAINONLY,
+    #     splits=splits,
+    #     build_kwargs_fun=flair_seqtag.kwargs_builder_maintaining_train_dev_test,
+    #     scorer_fun=flair_seqtag.score_flair_tagger,
+    #     data_supplier=data_supplier,
+    #     params={"params": {"max_epochs": 2}, "data_supplier": data_supplier},
+    # )
+    # calc_write_learning_curve(exp, max_num_workers=3)
 
     import benchmark_spacyCrf_tagger as spacy_crf
 
@@ -123,16 +127,11 @@ if __name__ == "__main__":
     exp = Experiment(
         "spacy-crf-test-preserving",
         TRAINONLY,
-        splits=shufflesplit_trainset_only_trainsize_range(
-            TrainDevTest(dataset.train, dataset.dev, dataset.test),
-            num_folds=3,
-            starts=0.2,
-            ends=0.8,
-            steps=0.2,
-        ),
+        num_folds=num_folds,
+        splits=splits,
         build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
         scorer_fun=spacy_crf.score_spacycrfsuite_tagger,
         data_supplier=data_supplier,
         params={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
     )
-    calc_write_learning_curve(exp,max_num_workers=1)
+    calc_write_learning_curve(exp, max_num_workers=40)
