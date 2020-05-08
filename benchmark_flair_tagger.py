@@ -12,7 +12,7 @@ from flair.data import Sentence, Corpus
 from flair.embeddings import (
     TokenEmbeddings,
     WordEmbeddings,
-    StackedEmbeddings,
+    StackedEmbeddings, BertEmbeddings,
 )
 from flair.models import SequenceTagger
 from sklearn.model_selection import ShuffleSplit
@@ -53,12 +53,12 @@ def score_flair_tagger(
     corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
 
     embedding_types: List[TokenEmbeddings] = [
-        WordEmbeddings("glove"),
-        # BertEmbeddings("bert-base-multilingual-cased", layers="-1")
+        # WordEmbeddings("glove"),
+        BertEmbeddings("bert-base-cased", layers="-1")
     ]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
-        hidden_size=64,
+        hidden_size=200, # 200 with Bert
         rnn_layers=1,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
@@ -80,7 +80,7 @@ def score_flair_tagger(
     trainer.train(
         base_path=save_path,
         learning_rate=0.001,
-        mini_batch_size=128,
+        mini_batch_size=6, # 6 with Bert, 128 with glove
         max_epochs=params["max_epochs"],
         patience=999,
         save_final_model=False,
@@ -152,7 +152,7 @@ def kwargs_builder(params, data_supplier):
 def run_experiment(exp_name, kwargs_builder_fun, splits):
     start = time()
     num_folds = len(splits)
-    n_jobs = min(5, num_folds)
+    n_jobs = 0# min(5, num_folds)# needs to be zero if using Transformers
 
     kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
     task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
@@ -207,7 +207,12 @@ if __name__ == "__main__":
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds
     {'m_scores': {'test': {'f1-micro-spanlevel': 0.6571898523684608,
     
-    crosseval
+    crosseval 20 epochs
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4383.46 seconds
     {'m_scores': {'test': {'f1-micro-spanlevel': 0.663033472415799,
+    
+    crosseval with Bert, 2 epochs
+      "overall-time": 2111.6508309841156,
+      "num-folds": 3
+    "f1-micro-spanlevel": 0.6909809545678615
     """
