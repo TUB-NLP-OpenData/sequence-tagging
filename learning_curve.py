@@ -4,6 +4,7 @@ from functools import partial
 
 from torch import multiprocessing
 
+from experiment_util import Experiment, TRAINONLY
 from mlutil.crossvalidation import (
     calc_scores,
     calc_mean_and_std,
@@ -21,11 +22,6 @@ from time import time
 from typing import Dict, List, Tuple, Any, Iterable
 from sklearn.model_selection import ShuffleSplit
 
-from benchmark_flair_tagger import (
-    score_flair_tagger,
-    kwargs_builder_maintaining_train_dev_test,
-    kwargs_builder,
-)
 from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet
 from util import data_io
 
@@ -49,29 +45,30 @@ def tuple_2_dict(t):
 
 
 def calc_write_learning_curve(
-    name,
-    kwargs_builder,
-    scorer_fun,
-    params,
-    splits,
-    n_jobs=0,
-    results_path=home + "/data/seqtag_results",
+    exp: Experiment, results_path=home + "/data/seqtag_results", max_num_workers=40
 ):
+    num_workers = min(min(max_num_workers, multiprocessing.cpu_count() - 1), num_folds)
+
+    name = exp.name
+    print("got %d evaluations to calculate" % len(exp.splits))
     results_path = results_path + "/" + name
     os.makedirs(results_path, exist_ok=True)
     start = time()
-    task = ScoreTask(scorer_fun, kwargs_builder, params)
+    task = ScoreTask(exp.scorer_fun, exp.build_kwargs_fun, exp.params)
 
-    scores = calc_scores(task, [split for train_size, split in splits], n_jobs=n_jobs)
+    scores = calc_scores(
+        task, [split for train_size, split in exp.splits], n_jobs=num_workers
+    )
     duration = time() - start
     meta_data = {
         "duration": duration,
-        "num-workers": n_jobs,
+        "num-workers": num_workers,
+        "experiment":exp.__dict__,
     }
     data_io.write_json(results_path + "/meta_datas.json", meta_data)
     print("calculating learning-curve for %s took %0.2f seconds" % (name, duration))
     results = groupandsort_by_first(
-        zip([train_size for train_size, _ in splits], scores)
+        zip([train_size for train_size, _ in exp.splits], scores)
     )
     data_io.write_json(results_path + "/learning_curve.json", results)
 
@@ -81,20 +78,6 @@ def calc_write_learning_curve(
     }
     data_io.write_json(
         results_path + "/learning_curve_meanstd.json", trainsize_to_mean_std_scores,
-    )
-
-
-def learn_curve_spacy_crf(name,splits, build_kwargs_fun):
-
-    num_workers = min(multiprocessing.cpu_count() - 1, len(splits))
-    print("got %d evaluations to calculate" % len(splits))
-    calc_write_learning_curve(
-        "spacy-crf-%s" % name,
-        build_kwargs_fun,
-        spacy_crf.score_spacycrfsuite_tagger,
-        {"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
-        splits,
-        n_jobs=num_workers,
     )
 
 
@@ -110,8 +93,8 @@ if __name__ == "__main__":
     data_supplier = partial(read_JNLPBA_data, path=data_path)
 
     dataset: TaggedSeqsDataSet = data_supplier()
-    sentences = dataset.train + dataset.dev + dataset.test
-    dataset_size = len(sentences)
+    # sentences = dataset.train + dataset.dev + dataset.test
+    # dataset_size = len(sentences)
 
     num_folds = 3
     # for num_workers in [1, 2, 3, 4]:
@@ -137,9 +120,9 @@ if __name__ == "__main__":
     #     ),
     #     build_kwargs_fun=spacy_crf.build_kwargs,
     # )
-
-    learn_curve_spacy_crf(
-        name = 'test-preserving',
+    exp = Experiment(
+        "spacy-crf-test-preserving",
+        TRAINONLY,
         splits=shufflesplit_trainset_only_trainsize_range(
             TrainDevTest(dataset.train, dataset.dev, dataset.test),
             num_folds=3,
@@ -148,4 +131,8 @@ if __name__ == "__main__":
             steps=0.2,
         ),
         build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
+        scorer_fun=spacy_crf.score_spacycrfsuite_tagger,
+        data_supplier=data_supplier,
+        params={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
     )
+    calc_write_learning_curve(exp,max_num_workers=1)

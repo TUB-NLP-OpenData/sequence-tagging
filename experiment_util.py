@@ -1,5 +1,19 @@
-from typing import Dict, List, Any
+from dataclasses import dataclass
 
+from typing import List, Any, Callable,Dict
+
+CROSSVALIDATION="crossvalidation"
+TRAINONLY="trainonly"
+
+@dataclass
+class Experiment:
+    name:str
+    mode:str
+    splits:List[Any]
+    build_kwargs_fun:Callable
+    scorer_fun:Callable
+    data_supplier:Callable
+    params:Dict[str,Any]
 
 def split_data(split:Dict[str,List[int]], data:List[Any]):
     return {

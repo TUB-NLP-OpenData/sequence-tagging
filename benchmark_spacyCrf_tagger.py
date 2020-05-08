@@ -7,7 +7,7 @@ from torch import multiprocessing
 
 from eval_jobs import crosseval_on_concat_dataset, TrainDevTest
 from reading_seqtag_data import read_JNLPBA_data
-from splitting_util import split_data, split_splits
+from experiment_util import split_data, split_splits
 from util import data_io
 
 from time import time
