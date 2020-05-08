@@ -22,9 +22,8 @@ class SpacyCrfSuiteTagger(object):
         self.spacy_nlp = (
             spacy.load("en_core_web_sm", disable=["parser"]) if nlp is None else nlp
         )
-        infix_re = re.compile(r"\s")
         self.spacy_nlp.tokenizer = Tokenizer(
-            nlp.vocab, infix_finditer=infix_re.finditer
+            self.spacy_nlp.vocab
         )
         self.verbose = verbose
 
