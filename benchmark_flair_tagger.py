@@ -12,10 +12,12 @@ from flair.data import Sentence, Corpus
 from flair.embeddings import (
     TokenEmbeddings,
     WordEmbeddings,
-    StackedEmbeddings, BertEmbeddings,
+    StackedEmbeddings,
+    BertEmbeddings,
 )
 from flair.models import SequenceTagger
-from sklearn.model_selection import ShuffleSplit
+
+from splitting_util import split_data, split_splits
 from util import data_io
 
 from eval_jobs import (
@@ -35,10 +37,12 @@ from reading_seqtag_data import (
 )
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 
+
 def build_tag_dict(sequences: List[List[Tuple[str, str]]], tag_type):
     sentences = build_flair_sentences_from_sequences(sequences)
     corpus = Corpus(train=sentences, dev=[], test=[])
     return corpus.make_tag_dictionary(tag_type)
+
 
 def score_flair_tagger(
     split, data, tag_dictionary, params, train_dev_test_sentences_builder
@@ -56,12 +60,12 @@ def score_flair_tagger(
     corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
 
     embedding_types: List[TokenEmbeddings] = [
-        # WordEmbeddings("glove"),
-        BertEmbeddings("bert-base-cased", layers="-1")
+        WordEmbeddings("glove"),
+        # BertEmbeddings("bert-base-cased", layers="-1")
     ]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
-        hidden_size=200, # 200 with Bert
+        hidden_size=64,  # 200 with Bert; 64 with glove
         rnn_layers=1,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
@@ -83,7 +87,7 @@ def score_flair_tagger(
     trainer.train(
         base_path=save_path,
         learning_rate=0.001,
-        mini_batch_size=6, # 6 with Bert, 128 with glove
+        mini_batch_size=128,  # 6 with Bert, 128 with glove
         max_epochs=params["max_epochs"],
         patience=999,
         save_final_model=False,
@@ -118,10 +122,8 @@ def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
 
     def train_dev_test_sentences_builder(split, data):
         return [
-            build_flair_sentences_from_sequences(
-                [getattr(data, dataset_name)[i] for i in split[dataset_name]]
-            )
-            for dataset_name in ["train", "dev", "test"]
+            build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in split_splits(split, data._asdict())
         ]
 
     return {
@@ -140,8 +142,8 @@ def kwargs_builder(params, data_supplier):
 
     def train_dev_test_sentences_builder(split, data):
         return [
-            build_flair_sentences_from_sequences([data[i] for i in split[dataset_name]])
-            for dataset_name in ["train", "dev", "test"]
+            build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in split_data(split, data).items()
         ]
 
     return {
@@ -155,7 +157,7 @@ def kwargs_builder(params, data_supplier):
 def run_experiment(exp_name, kwargs_builder_fun, splits):
     start = time()
     num_folds = len(splits)
-    n_jobs = 0# min(5, num_folds)# needs to be zero if using Transformers
+    n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
     kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
     task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
@@ -203,7 +205,7 @@ if __name__ == "__main__":
         ),
     }
 
-    for exp_name, (splits,kw_fun) in experiment.items():
+    for exp_name, (splits, kw_fun) in experiment.items():
         run_experiment(exp_name, kw_fun, splits)
 
     """
