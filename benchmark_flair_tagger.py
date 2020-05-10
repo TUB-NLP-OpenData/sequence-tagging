@@ -1,5 +1,6 @@
 import os
 from functools import partial
+from pprint import pprint
 from time import time
 from typing import Dict, Callable
 
@@ -78,7 +79,7 @@ if __name__ == "__main__":
         read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
     )
     dataset = data_supplier()
-    num_folds = 3
+    num_folds = 1
 
     splits = shufflesplit_trainset_only(dataset, num_folds)
     start = time()
@@ -86,7 +87,7 @@ if __name__ == "__main__":
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
     exp_name = 'flair-glove'
-    task = FlairGoveSeqTagScorer(params={"max_epochs": 2}, data_supplier=data_supplier)
+    task = FlairGoveSeqTagScorer(params={"max_epochs": 1}, data_supplier=data_supplier)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     duration = time() - start
     print(
@@ -98,7 +99,8 @@ if __name__ == "__main__":
         "overall-time": duration,
         "num-folds": num_folds,
     }
-    data_io.write_json("%s.json" % exp_name, exp_results)
+    pprint(exp_results)
+    # data_io.write_json("%s.json" % exp_name, exp_results)
 
     """
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds

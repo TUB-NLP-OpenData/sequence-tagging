@@ -1,6 +1,8 @@
-from typing import List, Tuple
+from collections import namedtuple
+from typing import List, Tuple, NamedTuple
 
 import numpy as np
+from flair.data import iob2, iob_iobes
 from sklearn import metrics
 
 BIO = {"B", "I", "O"}
@@ -41,6 +43,13 @@ def correct_biotags(tag_seq):
             correction_counter += 1
             corr_tag_seq[i] = "B-" + current_label
     return corr_tag_seq
+
+def iob2iobes(tags:List[str]):
+    Label = namedtuple("Label","value") # just to please flair
+    tags = [Label(tag) for tag in tags]
+    iob2(tags)
+    tags = iob_iobes(tags)
+    return tags
 
 
 def bilou2bio(tag_seq):

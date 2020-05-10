@@ -3,8 +3,10 @@ from typing import Dict, NamedTuple, Tuple, List
 
 from allennlp.data.dataset_readers import Conll2003DatasetReader
 from reading_scierc_data import read_scierc_seqs
+from seq_tag_util import iob2iobes
 
 TaggedSequence = List[Tuple[str, str]]
+
 
 class TaggedSeqsDataSet(NamedTuple):
     train: List[TaggedSequence]
@@ -12,7 +14,12 @@ class TaggedSeqsDataSet(NamedTuple):
     test: List[TaggedSequence]
 
 
-def read_scierc_data(path)->TaggedSeqsDataSet:
+def preprocess_sequence(seq: TaggedSequence) -> TaggedSequence:
+    tags = [tag for tok, tag in seq]
+    return [(tok, tag) for (tok, _), tag in zip(seq, iob2iobes(tags))]
+
+
+def read_scierc_data(path) -> TaggedSeqsDataSet:
     data = {
         dataset_name: read_scierc_seqs("%s/%s.json" % (path, dataset_name))
         for dataset_name in ["train", "dev", "test"]
@@ -34,15 +41,18 @@ def read_JNLPBA_data(path) -> TaggedSeqsDataSet:
         ]
 
     dataset2sequences = {
-        file.split(".")[0]: list(read_file("%s/%s" % (path, file)))
+        file.split(".")[0]: [
+            preprocess_sequence(seq) for seq in read_file("%s/%s" % (path, file))
+        ]
         for file in os.listdir(path)
     }
     return TaggedSeqsDataSet(**dataset2sequences)
 
+
 def read_tokenized_and_tagged(file_path):
-    '''
+    """
     taken from transformers/examples/utils_ner.py
-    '''
+    """
 
     guid_index = 1
     examples = []
@@ -52,7 +62,7 @@ def read_tokenized_and_tagged(file_path):
         for line in f:
             if line.startswith("-DOCSTART-") or line == "" or line == "\n":
                 if words:
-                    examples.append([(w,l) for w,l in zip(words,labels)])
+                    examples.append([(w, l) for w, l in zip(words, labels)])
                     guid_index += 1
                     words = []
                     labels = []
@@ -65,22 +75,13 @@ def read_tokenized_and_tagged(file_path):
                     # Examples could have no label for mode = "test"
                     labels.append("O")
         if words:
-            examples.append([(w,l) for w,l in zip(words,labels)])
+            examples.append([(w, l) for w, l in zip(words, labels)])
     return examples
+
 
 def read_germEval_2014_data(path) -> TaggedSeqsDataSet:
     dataset2sequences = {
         file.split(".")[0]: list(read_tokenized_and_tagged("%s/%s" % (path, file)))
-        for file in ['train.txt','dev.txt','test.txt']
+        for file in ["train.txt", "dev.txt", "test.txt"]
     }
     return TaggedSeqsDataSet(**dataset2sequences)
-
-
-def get_JNLPBA_sequences(jnlpda_data_path)->List[List[Tuple[str, str]]]:
-    dataset: TaggedSeqsDataSet = read_JNLPBA_data(jnlpda_data_path)
-    data = [
-        sent
-        for sequences in [dataset.train, dataset.dev, dataset.test]
-        for sent in sequences
-    ]
-    return data
