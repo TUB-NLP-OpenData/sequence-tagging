@@ -28,12 +28,13 @@ def build_conll03en_corpus(base_path: str):
     return corpus, tag_type, tag_dictionary
 
 
-if __name__ == "__main__":
-    HOME = os.environ["HOME"] + "/hpc"
-    base_path = HOME + "/FARM/data/conll03-en"
-
-    corpus, tag_type, tag_dictionary = build_conll03en_corpus(base_path)
-
+def build_and_train_conll03en_flair_sequence_tagger():
+    '''
+    do not change!
+    same configuration as described in
+      file:  "flair/resources/docs/EXPERIMENTS.md"
+      section: "CoNLL-03 Named Entity Recognition (English)"
+    '''
     embeddings: StackedEmbeddings = StackedEmbeddings(
         embeddings=[
             WordEmbeddings("glove"),
@@ -41,9 +42,7 @@ if __name__ == "__main__":
             PooledFlairEmbeddings("news-backward", pooling="min"),
         ]
     )
-
     from flair.models import SequenceTagger
-
     tagger: SequenceTagger = SequenceTagger(
         hidden_size=256,
         embeddings=embeddings,
@@ -55,4 +54,16 @@ if __name__ == "__main__":
 
     trainer: ModelTrainer = ModelTrainer(tagger, corpus)
 
-    trainer.train("resources/taggers/example-ner", train_with_dev=True, max_epochs=10)
+    trainer.train("resources/taggers/example-ner", train_with_dev=True, max_epochs=150)
+
+    return tagger
+
+
+if __name__ == "__main__":
+    HOME = os.environ["HOME"] #+ "/hpc"
+    base_path = HOME + "/FARM/data/conll03-en"
+
+    corpus, tag_type, tag_dictionary = build_conll03en_corpus(base_path)
+
+    tagger = build_and_train_conll03en_flair_sequence_tagger()
+
