@@ -32,7 +32,7 @@ def build_tag_dict(sequences: List[TaggedSequence], tag_type):
 
 
 def build_task_data_maintaining_splits(params, data_supplier):
-    data: TaggedSeqsDataSet = data_supplier()
+    dataset: TaggedSeqsDataSet = data_supplier()
 
     def train_dev_test_sentences_builder(split, data):
         return {
@@ -41,10 +41,10 @@ def build_task_data_maintaining_splits(params, data_supplier):
         }
 
     return {
-        "data": data._asdict(),
+        "data": dataset._asdict(),
         "params": params,
         "tag_dictionary": build_tag_dict(
-            [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
+            [seq for seqs in dataset._asdict().values() for seq in seqs], TAG_TYPE
         ),
         "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
     }
