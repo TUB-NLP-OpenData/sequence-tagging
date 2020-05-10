@@ -82,12 +82,12 @@ if __name__ == "__main__":
     num_folds = 1
 
     splits = shufflesplit_trainset_only(dataset, num_folds)
-    start = time()
     num_folds = len(splits)
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
     exp_name = 'flair-glove'
     task = FlairGoveSeqTagScorer(params={"max_epochs": 1}, data_supplier=data_supplier)
+    start = time()
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     duration = time() - start
     print(

@@ -11,16 +11,11 @@ from mlutil.crossvalidation import (
     ScoreTask,
 )  # TODO(tilo) must be imported before numpy
 
-from eval_jobs import (
-    crosseval_on_concat_dataset_trainsize_range,
-    shufflesplit_trainset_only_trainsize_range,
-    TrainDevTest,
-)
+from eval_jobs import shufflesplit_trainset_only_trainsize_range
 import numpy
 from itertools import groupby
 from time import time
 from typing import Dict, List, Tuple, Any, Iterable
-from sklearn.model_selection import ShuffleSplit
 
 from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet
 from util import data_io
@@ -47,17 +42,17 @@ def tuple_2_dict(t):
 def calc_write_learning_curve(
     exp: Experiment, results_path=home + "/data/seqtag_results", max_num_workers=40
 ):
-    num_workers = min(min(max_num_workers, multiprocessing.cpu_count() - 1), exp.num_folds)
+    num_workers = min(
+        min(max_num_workers, multiprocessing.cpu_count() - 1), exp.num_folds
+    )
 
     name = exp.name
     print("got %d evaluations to calculate" % len(exp.splits))
     results_path = results_path + "/" + name
     os.makedirs(results_path, exist_ok=True)
     start = time()
-    task = ScoreTask(exp.scorer_fun, exp.build_kwargs_fun, exp.params)
-
     scores = calc_scores(
-        task, [split for train_size, split in exp.splits], n_jobs=num_workers
+        exp.score_task, [split for train_size, split in exp.splits], n_jobs=num_workers
     )
     duration = time() - start
     meta_data = {
@@ -98,41 +93,40 @@ if __name__ == "__main__":
 
     import benchmark_flair_tagger as flair_seqtag
 
-    num_folds = 2
+    num_folds = 1
     splits = shufflesplit_trainset_only_trainsize_range(
-        TrainDevTest(dataset.train, dataset.dev, dataset.test),
+        TaggedSeqsDataSet(dataset.train, dataset.dev, dataset.test),
         num_folds=num_folds,
-        train_sizes=[0.1,0.2],
+        train_sizes=[0.1],
     )
 
     exp = Experiment(
-        "flair-test-preserving",
+        "flair-bert-debug",
         TRAINONLY,
         num_folds=num_folds,
         splits=splits,
-        build_kwargs_fun=flair_seqtag.kwargs_builder_maintaining_train_dev_test,
-        scorer_fun=flair_seqtag.score_flair_tagger,
-        data_supplier=data_supplier,
-        params={"params": {"max_epochs": 2}, "data_supplier": data_supplier},
+        score_task=flair_seqtag.FlairGoveSeqTagScorer(
+            params={"max_epochs": 1}, data_supplier=data_supplier
+        ),
     )
-    calc_write_learning_curve(exp, max_num_workers=3)
+    calc_write_learning_curve(exp, max_num_workers=0)
 
-    import benchmark_spacyCrf_tagger as spacy_crf
-
-    # learn_curve_spacy_crf(
-    #     splits=crosseval_on_concat_dataset_trainsize_range(
-    #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
-    #     ),
-    #     build_kwargs_fun=spacy_crf.build_kwargs,
+    # import benchmark_spacyCrf_tagger as spacy_crf
+    #
+    # # learn_curve_spacy_crf(
+    # #     splits=crosseval_on_concat_dataset_trainsize_range(
+    # #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
+    # #     ),
+    # #     build_kwargs_fun=spacy_crf.build_kwargs,
+    # # )
+    # exp = Experiment(
+    #     "spacy-crf-debug",
+    #     TRAINONLY,
+    #     num_folds=num_folds,
+    #     splits=splits,
+    #     build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
+    #     scorer_fun=spacy_crf.score_spacycrfsuite_tagger,
+    #     data_supplier=data_supplier,
+    #     params={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
     # )
-    exp = Experiment(
-        "spacy-crf-test-preserving",
-        TRAINONLY,
-        num_folds=num_folds,
-        splits=splits,
-        build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
-        scorer_fun=spacy_crf.score_spacycrfsuite_tagger,
-        data_supplier=data_supplier,
-        params={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
-    )
-    calc_write_learning_curve(exp, max_num_workers=40)
+    # calc_write_learning_curve(exp, max_num_workers=40)

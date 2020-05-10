@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from typing import List, Any, Callable, Dict
 
+from util.worker_pool import GenericTask
+
 CROSSVALIDATION = "crossvalidation"
 TRAINONLY = "trainonly"
 
@@ -12,10 +14,7 @@ class Experiment:
     mode: str
     num_folds: int
     splits: List[Any]
-    build_kwargs_fun: Callable
-    scorer_fun: Callable
-    data_supplier: Callable
-    params: Dict[str, Any]
+    score_task: GenericTask
 
     def __str__(self):
         return str({k: v for k, v in self.__dict__.items() if k not in ["splits"]})
