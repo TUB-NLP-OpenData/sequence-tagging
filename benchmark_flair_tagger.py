@@ -1,167 +1,68 @@
-import logging
-import multiprocessing
 import os
-import shutil
 from functools import partial
 from time import time
-from typing import List
+from typing import Dict, Callable
 
 import torch
-from flair.data import Sentence, Corpus
 from flair.embeddings import (
-    TokenEmbeddings,
     StackedEmbeddings,
-    BertEmbeddings,
+    WordEmbeddings,
 )
 from flair.models import SequenceTagger
+from flair.trainers import ModelTrainer
 
-from experiment_util import split_data, split_splits
-from util import data_io
-
-from eval_jobs import (
-    shufflesplit_trainset_only,
-    crosseval_on_concat_dataset,
-    preserve_train_dev_test,
-    TaggedSeqsDataSet,
-)
-from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
-from reading_scierc_data import TAG_TYPE
-from flair_util import build_flair_sentences_from_sequences, build_tag_dict
-from reading_seqtag_data import (
-    TaggedSeqsDataSet,
-    read_JNLPBA_data,
-)
-from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
+from eval_jobs import crosseval_on_concat_dataset
+from flair_util import FlairScoreTask
+from mlutil.crossvalidation import calc_mean_std_scores
+from reading_seqtag_data import read_JNLPBA_data
 
 
-def score_flair_tagger(
-    split, data, tag_dictionary, params, train_dev_test_sentences_builder
-):
-    from flair.trainers import ModelTrainer, trainer
+class FlairGoveSeqTagScorer(FlairScoreTask):
+    def __init__(self, params: Dict, data_supplier: Callable) -> None:
+        super().__init__(params, data_supplier)
 
-    logger = trainer.log
-    logger.setLevel(logging.WARNING)
-    # torch.cuda.empty_cache()
+    @staticmethod
+    def build_train_sequence_tagger(corpus, tag_dictionary, params, TAG_TYPE="ner"):
+        embeddings = StackedEmbeddings(
+            embeddings=[
+                WordEmbeddings("glove"),
+                # BertEmbeddings("bert-base-cased", layers="-1")
+            ]
+        )
+        tagger: SequenceTagger = SequenceTagger(
+            hidden_size=64,  # 200 with Bert; 64 with glove
+            rnn_layers=1,
+            embeddings=embeddings,
+            tag_dictionary=tag_dictionary,
+            tag_type=TAG_TYPE,
+            locked_dropout=0.01,
+            dropout=0.01,
+            use_crf=False,
+        )
+        trainer: ModelTrainer = ModelTrainer(
+            tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=False,
+        )
+        # print(tagger)
+        # pprint([p_name for p_name, p in tagger.named_parameters()])
 
-    splits = train_dev_test_sentences_builder(split, data)
-
-    corpus = Corpus(train=splits["train"], dev=splits["dev"], test=splits["test"])
-
-    embeddings = StackedEmbeddings(
-        embeddings=[
-            # WordEmbeddings("glove"),
-            BertEmbeddings("bert-base-cased", layers="-1")
-        ]
-    )
-    tagger: SequenceTagger = SequenceTagger(
-        hidden_size=200,  # 200 with Bert; 64 with glove
-        rnn_layers=1,
-        embeddings=embeddings,
-        tag_dictionary=tag_dictionary,
-        tag_type=TAG_TYPE,
-        locked_dropout=0.01,
-        dropout=0.01,
-        use_crf=False,
-    )
-    trainer: ModelTrainer = ModelTrainer(
-        tagger, corpus, optimizer=torch.optim.Adam, use_tensorboard=False,
-    )
-    # print(tagger)
-    # pprint([p_name for p_name, p in tagger.named_parameters()])
-    process_name = multiprocessing.current_process().name
-    save_path = "flair_seq_tag_model_%s" % process_name
-    if os.path.isdir(save_path):
-        shutil.rmtree(save_path)
-    assert not os.path.isdir(save_path)
-    trainer.train(
-        base_path=save_path,
-        learning_rate=0.001,
-        mini_batch_size=6,  # 6 with Bert, 128 with glove
-        max_epochs=params["max_epochs"],
-        patience=999,
-        save_final_model=False,
-        param_selection_mode=False,
-        num_workers=1,  # why-the-ff should one need 6 workers for dataloading?!
-        monitor_train=True,
-        monitor_test=True,
-    )
-
-    def flair_tagger_predict_bio(sentences: List[Sentence]):
-        train_data = [
-            [(token.text, token.tags[tagger.tag_type].value) for token in datum]
-            for datum in sentences
-        ]
-        targets = [bilou2bio([tag for token, tag in datum]) for datum in train_data]
-
-        pred_sentences = tagger.predict(sentences)
-        pred_data = [
-            bilou2bio([token.tags[tagger.tag_type].value for token in datum])
-            for datum in pred_sentences
-        ]
-        return pred_data, targets
-
-    return {
-        split_name: calc_seqtag_f1_scores(flair_tagger_predict_bio, split_data)
-        for split_name, split_data in splits.items()
-    }
-
-
-def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
-    data: TaggedSeqsDataSet = data_supplier()
-
-    def train_dev_test_sentences_builder(split, data):
-        return {
-            split_name: build_flair_sentences_from_sequences(data_split)
-            for split_name, data_split in split_splits(split, data).items()
-        }
-
-    return {
-        "data": data._asdict(),
-        "params": params,
-        "tag_dictionary": build_tag_dict(
-            [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
-        ),
-        "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
-    }
-
-
-def kwargs_builder(params, data_supplier):
-    dataset: TaggedSeqsDataSet = data_supplier()
-    sentences = dataset.train + dataset.dev + dataset.test
-
-    def train_dev_test_sentences_builder(split, data):
-        return {
-            split_name: build_flair_sentences_from_sequences(data_split)
-            for split_name, data_split in split_data(split, data).items()
-        }
-
-    return {
-        "data": sentences,
-        "params": params,
-        "tag_dictionary": build_tag_dict(sentences, TAG_TYPE),
-        "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
-    }
-
-
-def run_experiment(exp_name, kwargs_builder_fun, splits):
-    start = time()
-    num_folds = len(splits)
-    n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
-
-    kwargs_kwargs = {"params": {"max_epochs": 2}, "data_supplier": data_supplier}
-    task = ScoreTask(score_flair_tagger, kwargs_builder_fun, kwargs_kwargs)
-    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
-    duration = time() - start
-    print(
-        "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
-        % (num_folds, n_jobs, duration)
-    )
-    exp_results = {
-        "scores": m_scores_std_scores,
-        "overall-time": duration,
-        "num-folds": num_folds,
-    }
-    data_io.write_json("%s.json" % exp_name, exp_results)
+        # process_name = multiprocessing.current_process().name
+        # save_path = "flair_seq_tag_model_%s" % process_name
+        # if os.path.isdir(save_path):
+        #     shutil.rmtree(save_path)
+        # assert not os.path.isdir(save_path)
+        trainer.train(
+            base_path="flair_checkpoints",
+            learning_rate=0.001,
+            mini_batch_size=128,  # 6 with Bert, 128 with glove
+            max_epochs=params["max_epochs"],
+            patience=999,
+            save_final_model=False,
+            param_selection_mode=False,
+            num_workers=1,  # why-the-ff should one need 6 workers for dataloading?!
+            monitor_train=True,
+            monitor_test=True,
+        )
+        return tagger
 
 
 if __name__ == "__main__":
@@ -178,20 +79,24 @@ if __name__ == "__main__":
     dataset = data_supplier()
     num_folds = 3
 
-    experiment = {
-        "crosseval": (crosseval_on_concat_dataset(dataset, num_folds), kwargs_builder,),
-        "dev-test-preserving": (
-            shufflesplit_trainset_only(dataset, num_folds),
-            kwargs_builder_maintaining_train_dev_test,
-        ),
-        "train-dev-test-preserving": (
-            preserve_train_dev_test(dataset, num_folds),
-            kwargs_builder_maintaining_train_dev_test,
-        ),
-    }
+    splits = crosseval_on_concat_dataset(dataset, num_folds)
+    start = time()
+    num_folds = len(splits)
+    n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
-    for exp_name, (splits, kw_fun) in experiment.items():
-        run_experiment(exp_name, kw_fun, splits)
+    task = FlairGoveSeqTagScorer(params={"max_epochs": 2}, data_supplier=data_supplier)
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
+    duration = time() - start
+    print(
+        "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
+        % (num_folds, n_jobs, duration)
+    )
+    # exp_results = {
+    #     "scores": m_scores_std_scores,
+    #     "overall-time": duration,
+    #     "num-folds": num_folds,
+    # }
+    # data_io.write_json("%s.json" % exp_name, exp_results)
 
     """
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds

@@ -1,10 +1,16 @@
-from typing import List, Tuple
+from abc import abstractmethod
+from typing import List, Dict, Any, Callable
+
 from flair.data import Sentence, Token, Corpus
-from reading_seqtag_data import TaggedSequence
+
+from experiment_util import split_splits, split_data
+from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet
+from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
+from util.worker_pool import GenericTask
 
 
 def build_flair_sentences_from_sequences(
-    sequences: List[TaggedSequence],TAG_TYPE="ner"
+    sequences: List[TaggedSequence], TAG_TYPE="ner"
 ) -> List[Sentence]:
 
     sentences = []
@@ -23,3 +29,97 @@ def build_tag_dict(sequences: List[TaggedSequence], tag_type):
     sentences = build_flair_sentences_from_sequences(sequences)
     corpus = Corpus(train=sentences, dev=[], test=[])
     return corpus.make_tag_dictionary(tag_type)
+
+
+def build_task_data_maintaining_splits(params, data_supplier):
+    data: TaggedSeqsDataSet = data_supplier()
+
+    def train_dev_test_sentences_builder(split, data):
+        return {
+            split_name: build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in split_splits(split, data).items()
+        }
+
+    return {
+        "data": data._asdict(),
+        "params": params,
+        "tag_dictionary": build_tag_dict(
+            [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
+        ),
+        "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
+    }
+
+
+def build_task_data_concat_dataset(params, data_supplier):
+    dataset: TaggedSeqsDataSet = data_supplier()
+    sentences: List = dataset.train + dataset.dev + dataset.test
+
+    def train_dev_test_sentences_builder(split, data):
+        return {
+            split_name: build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in split_data(split, data).items()
+        }
+
+    return {
+        "data": sentences,
+        "params": params,
+        "tag_dictionary": build_tag_dict(sentences, TAG_TYPE),
+        "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
+    }
+
+
+from flair.trainers import trainer
+import logging
+
+logger = trainer.log
+logger.setLevel(logging.WARNING)
+
+TAG_TYPE = "ner"
+
+
+class FlairScoreTask(GenericTask):
+    def __init__(self, params: Dict, data_supplier: Callable) -> None:
+        task_params = {"params": params, "data_supplier": data_supplier}
+        super().__init__(**task_params)
+
+    @staticmethod
+    def build_task_data(**task_params) -> Dict[str, Any]:
+        return build_task_data_maintaining_splits(**task_params)
+
+    @classmethod
+    def process(cls, job, task_data: Dict[str, Any]):
+        split = job
+
+        # torch.cuda.empty_cache()
+
+        splits = task_data["train_dev_test_sentences_builder"](split, task_data["data"])
+
+        corpus = Corpus(train=splits["train"], dev=splits["dev"], test=splits["test"])
+
+        tagger = cls.build_train_sequence_tagger(
+            corpus, task_data["tag_dictionary"], task_data["params"]
+        )
+
+        def flair_tagger_predict_bio(sentences: List[Sentence]):
+            train_data = [
+                [(token.text, token.tags[tagger.tag_type].value) for token in datum]
+                for datum in sentences
+            ]
+            targets = [bilou2bio([tag for token, tag in datum]) for datum in train_data]
+
+            pred_sentences = tagger.predict(sentences)
+            pred_data = [
+                bilou2bio([token.tags[tagger.tag_type].value for token in datum])
+                for datum in pred_sentences
+            ]
+            return pred_data, targets
+
+        return {
+            split_name: calc_seqtag_f1_scores(flair_tagger_predict_bio, split_data)
+            for split_name, split_data in splits.items()
+        }
+
+    @staticmethod
+    @abstractmethod
+    def build_train_sequence_tagger(corpus, tag_dictionary, params, TAG_TYPE="ner"):
+        raise NotImplementedError
