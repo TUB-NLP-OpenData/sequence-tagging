@@ -11,8 +11,8 @@ BIO = {"B", "I", "O"}
 def calc_seqtag_f1_scores(
     predictions: List[List[str]], targets: List[List[str]],
 ):
-    assert set([t[0] for s in targets for t in s]) == BIO
-    assert set([t[0] for s in predictions for t in s]) == BIO
+    assert set([t[0] for s in targets for t in s]).issubset(BIO)
+    assert set([t[0] for s in predictions for t in s]).issubset(BIO)
     _, _, f1_train = spanlevel_pr_re_f1(predictions, targets)
     tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, predictions)
     return {
@@ -66,7 +66,7 @@ def bilou2bio(tag_seq):
             bio_tags[i] = "B-" + tag_seq[i][2:]
         elif tag_seq[i].startswith("L-") or tag_seq[i].startswith("E-"):
             bio_tags[i] = "I-" + tag_seq[i][2:]
-    assert set([t[0] for t in bio_tags]) == BIO
+    assert set([t[0] for t in bio_tags]).issubset(BIO)
     return bio_tags
 
 
