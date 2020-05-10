@@ -101,7 +101,7 @@ if __name__ == "__main__":
     )
 
     exp = Experiment(
-        "flair-bert-debug",
+        "flair-debug",
         TRAINONLY,
         num_folds=num_folds,
         splits=splits,
@@ -111,22 +111,15 @@ if __name__ == "__main__":
     )
     calc_write_learning_curve(exp, max_num_workers=0)
 
-    # import benchmark_spacyCrf_tagger as spacy_crf
-    #
-    # # learn_curve_spacy_crf(
-    # #     splits=crosseval_on_concat_dataset_trainsize_range(
-    # #         dataset_size, num_folds=3, test_size=0.2, starts=0.2, ends=0.8, steps=0.2
-    # #     ),
-    # #     build_kwargs_fun=spacy_crf.build_kwargs,
-    # # )
-    # exp = Experiment(
-    #     "spacy-crf-debug",
-    #     TRAINONLY,
-    #     num_folds=num_folds,
-    #     splits=splits,
-    #     build_kwargs_fun=spacy_crf.kwargs_builder_maintaining_train_dev_test,
-    #     scorer_fun=spacy_crf.score_spacycrfsuite_tagger,
-    #     data_supplier=data_supplier,
-    #     params={"params": {"c1": 0.5, "c2": 0.0}, "data_supplier": data_supplier},
-    # )
-    # calc_write_learning_curve(exp, max_num_workers=40)
+    import benchmark_spacyCrf_tagger as spacy_crf
+
+    exp = Experiment(
+        "spacy-crf-debug",
+        TRAINONLY,
+        num_folds=num_folds,
+        splits=splits,
+        score_task=spacy_crf.SpacyCrfScorer(
+            params={"c1": 0.5, "c2": 0.0}, data_supplier=data_supplier
+        ),
+    )
+    calc_write_learning_curve(exp, max_num_workers=40)

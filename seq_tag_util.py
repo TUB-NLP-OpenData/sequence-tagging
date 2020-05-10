@@ -6,10 +6,10 @@ from flair.data import iob2, iob_iobes
 from sklearn import metrics
 
 BIO = {"B", "I", "O"}
-
+Sequences = List[List[str]]
 
 def calc_seqtag_f1_scores(
-    predictions: List[List[str]], targets: List[List[str]],
+    predictions: Sequences, targets: Sequences,
 ):
     assert set([t[0] for s in targets for t in s]).issubset(BIO)
     assert set([t[0] for s in predictions for t in s]).issubset(BIO)
@@ -86,7 +86,7 @@ def spanlevel_pr_re_f1(label_pred, label_correct):
 
 
 def calc_seqtag_tokenlevel_scores(
-    gold_seqs: List[List[str]], pred_seqs: List[List[str]]
+    gold_seqs: Sequences, pred_seqs: Sequences
 ):
     gold_flattened = [l for seq in gold_seqs for l in seq]
     pred_flattened = [l for seq in pred_seqs for l in seq]

@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Callable
 
 from flair.data import Sentence, Token, Corpus
 
-from experiment_util import split_splits, split_data
+from experiment_util import split_splits, split_data, SeqTagScoreTask
 from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
 from util.worker_pool import GenericTask
@@ -77,17 +77,14 @@ logger.setLevel(logging.WARNING)
 TAG_TYPE = "ner"
 
 
-class FlairScoreTask(GenericTask):
-    def __init__(self, params: Dict, data_supplier: Callable) -> None:
-        task_params = {"params": params, "data_supplier": data_supplier}
-        super().__init__(**task_params)
+class FlairScoreTask(SeqTagScoreTask):
 
     @staticmethod
     def build_task_data(**task_params) -> Dict[str, Any]:
         return build_task_data_maintaining_splits(**task_params)
 
     @classmethod
-    def process(cls, job, task_data: Dict[str, Any]):
+    def predict_with_targets(cls, job, task_data: Dict[str, Any]):
         split = job
 
         # torch.cuda.empty_cache()
@@ -114,10 +111,7 @@ class FlairScoreTask(GenericTask):
             ]
             return pred_data, targets
 
-        return {
-            split_name: calc_seqtag_f1_scores(*flair_tagger_predict_bio(split_data))
-            for split_name, split_data in splits.items()
-        }
+        return {n:flair_tagger_predict_bio(d) for n,d in splits.items()}
 
     @staticmethod
     @abstractmethod

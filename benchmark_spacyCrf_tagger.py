@@ -1,44 +1,49 @@
 import os
-import sys
 from functools import partial
 from pprint import pprint
+from time import time
+from typing import Dict, Any, Tuple
 
 from torch import multiprocessing
 
 from eval_jobs import crosseval_on_concat_dataset, TaggedSeqsDataSet
+from experiment_util import split_data, split_splits, SeqTagScoreTask
+from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import read_JNLPBA_data
-from experiment_util import split_data, split_splits
+from seq_tag_util import bilou2bio, Sequences
+from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
 from util import data_io
 
-from time import time
 
-from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
-from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
-from sklearn.model_selection import ShuffleSplit
+class SpacyCrfScorer(SeqTagScoreTask):
+    @staticmethod
+    def build_task_data(**task_params) -> Dict[str, Any]:
+        return build_task_data_maintaining_splits(**task_params)
 
-from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
+    @classmethod
+    def predict_with_targets(
+        cls, job, task_data: Dict[str, Any]
+    ) -> Dict[str, Tuple[Sequences, Sequences]]:
+        splits = task_data["datasets_builder_fun"](job, task_data["data"])
 
+        tagger = SpacyCrfSuiteTagger(**task_data["params"])
+        tagger.fit(splits["train"])
 
-def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
-    data_splits = datasets_builder_fun(splits, data)
+        def pred_fun(token_tag_sequences):
+            y_pred = tagger.predict(
+                [[token for token, tag in datum] for datum in token_tag_sequences]
+            )
+            y_pred = [bilou2bio([tag for tag in datum]) for datum in y_pred]
+            targets = [
+                bilou2bio([tag for token, tag in datum])
+                for datum in token_tag_sequences
+            ]
+            return y_pred, targets
 
-    tagger = SpacyCrfSuiteTagger(**params)
-    tagger.fit(data_splits["train"])
-
-    def pred_fun(token_tag_sequences):
-        y_pred = tagger.predict(
-            [[token for token, tag in datum] for datum in token_tag_sequences]
-        )
-        y_pred = [bilou2bio([tag for tag in datum]) for datum in y_pred]
-        targets = [
-            bilou2bio([tag for token, tag in datum]) for datum in token_tag_sequences
-        ]
-        return y_pred, targets
-
-    return {
-        split_name: calc_seqtag_f1_scores(*pred_fun(split_data))
-        for split_name,split_data in data_splits.items()
-    }
+        return {
+            split_name: pred_fun(split_data)
+            for split_name, split_data in splits.items()
+        }
 
 
 from json import encoder
@@ -56,7 +61,8 @@ def build_kwargs(data_supplier, params):
         "datasets_builder_fun": split_data,
     }
 
-def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
+
+def build_task_data_maintaining_splits(params, data_supplier):
     data: TaggedSeqsDataSet = data_supplier()
     return {
         "data": data._asdict(),
@@ -76,14 +82,7 @@ if __name__ == "__main__":
     splits = crosseval_on_concat_dataset(dataset, num_folds, test_size=0.2)
 
     start = time()
-    task = ScoreTask(
-        score_fun=score_spacycrfsuite_tagger,
-        build_kwargs_fun=build_kwargs,
-        builder_kwargs={
-            "params": {"c1": 0.5, "c2": 0.0},
-            "data_supplier": data_supplier,
-        },
-    )
+    task = SpacyCrfScorer(params={"c1": 0.5, "c2": 0.0}, data_supplier=data_supplier)
     num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
     print(
