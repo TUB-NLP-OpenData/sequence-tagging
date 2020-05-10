@@ -2,16 +2,12 @@ import numpy
 from sklearn.model_selection import ShuffleSplit
 from typing import Dict, List, NamedTuple, Tuple
 
+from reading_seqtag_data import TaggedSeqsDataSet
+
 EvalJob = Dict[str, List[int]]
 
 
-class TrainDevTest(NamedTuple):
-    train: List
-    dev: List
-    test: List
-
-
-def _build_split_devtest_fix(train, dataset: TrainDevTest):
+def _build_split_devtest_fix(train, dataset: TaggedSeqsDataSet):
     return {
         "train": train,
         "dev": list(range(len(dataset.dev))),
@@ -20,7 +16,7 @@ def _build_split_devtest_fix(train, dataset: TrainDevTest):
 
 
 def shufflesplit_trainset_only(
-    dataset: TrainDevTest, num_folds: int = 5, train_size=0.8
+    dataset: TaggedSeqsDataSet, num_folds: int = 5, train_size=0.8
 ) -> List[EvalJob]:
     splitter = ShuffleSplit(n_splits=num_folds, train_size=train_size, random_state=111)
     splits = [
@@ -31,7 +27,7 @@ def shufflesplit_trainset_only(
 
 
 def shufflesplit_trainset_only_trainsize_range(
-    dataset: TrainDevTest, num_folds=3, train_sizes=[0.1,0.5,0.99]
+    dataset: TaggedSeqsDataSet, num_folds=3, train_sizes=[0.1, 0.5, 0.99]
 ) -> List[Tuple[float, EvalJob]]:
     splits = [
         (train_size, _build_split_devtest_fix(train, dataset))
@@ -49,7 +45,7 @@ def build_train_sizes(starts, ends, steps):
 
 
 def crosseval_on_concat_dataset(
-    dataset: TrainDevTest, num_folds: int = 5, test_size=0.2
+    dataset: TaggedSeqsDataSet, num_folds: int = 5, test_size=0.2
 ) -> List[EvalJob]:
     sentences = dataset.train + dataset.dev + dataset.test
     splitter = ShuffleSplit(n_splits=num_folds, test_size=test_size, random_state=111)
@@ -91,7 +87,7 @@ def crosseval_on_concat_dataset_trainsize_range(
     return splits
 
 
-def preserve_train_dev_test(dataset: TrainDevTest, num_folds: int = 5) -> List[EvalJob]:
+def preserve_train_dev_test(dataset: TaggedSeqsDataSet, num_folds: int = 5) -> List[EvalJob]:
     splits = [
         {
             dsname: list(range(len(getattr(dataset, dsname))))

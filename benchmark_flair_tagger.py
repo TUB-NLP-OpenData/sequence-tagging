@@ -22,7 +22,7 @@ from eval_jobs import (
     shufflesplit_trainset_only,
     crosseval_on_concat_dataset,
     preserve_train_dev_test,
-    TrainDevTest,
+    TaggedSeqsDataSet,
 )
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import (
@@ -181,18 +181,17 @@ if __name__ == "__main__":
     dataset = data_supplier()
     num_folds = 3
 
-    traindevtest = TrainDevTest(dataset.train, dataset.dev, dataset.test)
     experiment = {
         "crosseval": (
-            crosseval_on_concat_dataset(traindevtest, num_folds),
+            crosseval_on_concat_dataset(dataset, num_folds),
             kwargs_builder,
         ),
         "dev-test-preserving": (
-            shufflesplit_trainset_only(traindevtest, num_folds),
+            shufflesplit_trainset_only(dataset, num_folds),
             kwargs_builder_maintaining_train_dev_test,
         ),
         "train-dev-test-preserving": (
-            preserve_train_dev_test(traindevtest, num_folds),
+            preserve_train_dev_test(dataset, num_folds),
             kwargs_builder_maintaining_train_dev_test,
         ),
     }

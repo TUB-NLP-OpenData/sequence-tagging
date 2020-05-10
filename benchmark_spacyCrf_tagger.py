@@ -5,7 +5,7 @@ from pprint import pprint
 
 from torch import multiprocessing
 
-from eval_jobs import crosseval_on_concat_dataset, TrainDevTest
+from eval_jobs import crosseval_on_concat_dataset, TaggedSeqsDataSet
 from reading_seqtag_data import read_JNLPBA_data
 from experiment_util import split_data, split_splits
 from util import data_io
@@ -47,7 +47,7 @@ encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
 
 def build_kwargs(data_supplier, params):
-    dataset: TrainDevTest = data_supplier()
+    dataset: TaggedSeqsDataSet = data_supplier()
     data = dataset.train + dataset.dev + dataset.test
 
     return {
@@ -57,7 +57,7 @@ def build_kwargs(data_supplier, params):
     }
 
 def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
-    data: TrainDevTest = data_supplier()
+    data: TaggedSeqsDataSet = data_supplier()
     return {
         "data": data._asdict(),
         "params": params,
@@ -65,15 +65,10 @@ def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
     }
 
 
-def load_traindevtest_dataset(path):
-    ds = read_JNLPBA_data(path)
-    return TrainDevTest(ds.train, ds.dev, ds.test)
-
-
 if __name__ == "__main__":
 
     data_supplier = partial(
-        load_traindevtest_dataset, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+        read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
     )
     dataset = data_supplier()
     num_folds = 3
