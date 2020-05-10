@@ -11,7 +11,7 @@ from flair.embeddings import (
 from flair.models import SequenceTagger
 from flair.trainers import ModelTrainer
 
-from eval_jobs import crosseval_on_concat_dataset
+from eval_jobs import shufflesplit_trainset_only
 from flair_util import FlairScoreTask
 from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import read_JNLPBA_data
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     dataset = data_supplier()
     num_folds = 3
 
-    splits = crosseval_on_concat_dataset(dataset, num_folds)
+    splits = shufflesplit_trainset_only(dataset, num_folds)
     start = time()
     num_folds = len(splits)
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
