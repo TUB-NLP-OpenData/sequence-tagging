@@ -3,14 +3,16 @@ from typing import List, Tuple
 import numpy as np
 from sklearn import metrics
 
+BIO = {"B", "I", "O"}
+
 
 def calc_seqtag_f1_scores(
-    pred_targets_fun, token_tag_sequences: List[List[Tuple[str, str]]]
+    predictions: List[List[str]], targets: List[List[str]],
 ):
-    assert len(token_tag_sequences) > 0
-    y_pred, targets = pred_targets_fun(token_tag_sequences)
-    _, _, f1_train = spanlevel_pr_re_f1(y_pred, targets)
-    tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, y_pred)
+    assert set([t for s in targets for t in s]) == BIO
+    assert set([t for s in predictions for t in s]) == BIO
+    _, _, f1_train = spanlevel_pr_re_f1(predictions, targets)
+    tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, predictions)
     return {
         "token-level": tokenlevel_scores,
         "f1-micro-spanlevel": f1_train,
@@ -73,7 +75,9 @@ def spanlevel_pr_re_f1(label_pred, label_correct):
     return prec, rec, f1
 
 
-def calc_seqtag_tokenlevel_scores(gold_seqs, pred_seqs):
+def calc_seqtag_tokenlevel_scores(
+    gold_seqs: List[List[str]], pred_seqs: List[List[str]]
+):
     gold_flattened = [l for seq in gold_seqs for l in seq]
     pred_flattened = [l for seq in pred_seqs for l in seq]
     assert len(gold_flattened) == len(pred_flattened) and len(gold_flattened) > 0

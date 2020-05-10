@@ -115,7 +115,7 @@ class FlairScoreTask(GenericTask):
             return pred_data, targets
 
         return {
-            split_name: calc_seqtag_f1_scores(flair_tagger_predict_bio, split_data)
+            split_name: calc_seqtag_f1_scores(*flair_tagger_predict_bio(split_data))
             for split_name, split_data in splits.items()
         }
 

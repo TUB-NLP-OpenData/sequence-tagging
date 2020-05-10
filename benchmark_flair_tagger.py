@@ -10,6 +10,7 @@ from flair.embeddings import (
 )
 from flair.models import SequenceTagger
 from flair.trainers import ModelTrainer
+from util import data_io
 
 from eval_jobs import shufflesplit_trainset_only
 from flair_util import FlairScoreTask
@@ -84,6 +85,7 @@ if __name__ == "__main__":
     num_folds = len(splits)
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
+    exp_name = 'flair-glove'
     task = FlairGoveSeqTagScorer(params={"max_epochs": 2}, data_supplier=data_supplier)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
     duration = time() - start
@@ -91,12 +93,12 @@ if __name__ == "__main__":
         "flair-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
         % (num_folds, n_jobs, duration)
     )
-    # exp_results = {
-    #     "scores": m_scores_std_scores,
-    #     "overall-time": duration,
-    #     "num-folds": num_folds,
-    # }
-    # data_io.write_json("%s.json" % exp_name, exp_results)
+    exp_results = {
+        "scores": m_scores_std_scores,
+        "overall-time": duration,
+        "num-folds": num_folds,
+    }
+    data_io.write_json("%s.json" % exp_name, exp_results)
 
     """
     flair-tagger 3 folds with 3 jobs in PARALLEL took: 4466.98 seconds

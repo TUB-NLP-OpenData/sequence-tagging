@@ -36,8 +36,8 @@ def score_spacycrfsuite_tagger(splits, params, datasets_builder_fun, data):
         return y_pred, targets
 
     return {
-        split_name: calc_seqtag_f1_scores(pred_fun, data_splits[split_name])
-        for split_name in data_splits.keys()
+        split_name: calc_seqtag_f1_scores(*pred_fun(split_data))
+        for split_name,split_data in data_splits.items()
     }
 
 
