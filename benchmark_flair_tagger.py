@@ -25,9 +25,7 @@ from eval_jobs import (
     TaggedSeqsDataSet,
 )
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
-from reading_scierc_data import (
-    TAG_TYPE,
-)
+from reading_scierc_data import TAG_TYPE
 from flair_util import build_flair_sentences_from_sequences, build_tag_dict
 from reading_seqtag_data import (
     TaggedSeqsDataSet,
@@ -45,17 +43,16 @@ def score_flair_tagger(
     logger.setLevel(logging.WARNING)
     # torch.cuda.empty_cache()
 
-    train_sentences, dev_sentences, test_sentences = train_dev_test_sentences_builder(
-        split, data
+    splits = train_dev_test_sentences_builder(split, data)
+
+    corpus = Corpus(train=splits["train"], dev=splits["dev"], test=splits["test"])
+
+    embeddings = StackedEmbeddings(
+        embeddings=[
+            # WordEmbeddings("glove"),
+            BertEmbeddings("bert-base-cased", layers="-1")
+        ]
     )
-
-    corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
-
-    embedding_types: List[TokenEmbeddings] = [
-        # WordEmbeddings("glove"),
-        BertEmbeddings("bert-base-cased", layers="-1")
-    ]
-    embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
         hidden_size=200,  # 200 with Bert; 64 with glove
         rnn_layers=1,
@@ -104,8 +101,8 @@ def score_flair_tagger(
         return pred_data, targets
 
     return {
-        "train": calc_seqtag_f1_scores(flair_tagger_predict_bio, train_sentences),
-        "test": calc_seqtag_f1_scores(flair_tagger_predict_bio, test_sentences),
+        split_name: calc_seqtag_f1_scores(flair_tagger_predict_bio, split_data)
+        for split_name, split_data in splits.items()
     }
 
 
@@ -113,13 +110,13 @@ def kwargs_builder_maintaining_train_dev_test(params, data_supplier):
     data: TaggedSeqsDataSet = data_supplier()
 
     def train_dev_test_sentences_builder(split, data):
-        return [
-            build_flair_sentences_from_sequences(data_split)
-            for split_name, data_split in split_splits(split, data._asdict()).items()
-        ]
+        return {
+            split_name: build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in split_splits(split, data).items()
+        }
 
     return {
-        "data": data,
+        "data": data._asdict(),
         "params": params,
         "tag_dictionary": build_tag_dict(
             [seq for seqs in data._asdict().values() for seq in seqs], TAG_TYPE
@@ -133,10 +130,10 @@ def kwargs_builder(params, data_supplier):
     sentences = dataset.train + dataset.dev + dataset.test
 
     def train_dev_test_sentences_builder(split, data):
-        return [
-            build_flair_sentences_from_sequences(data_split)
+        return {
+            split_name: build_flair_sentences_from_sequences(data_split)
             for split_name, data_split in split_data(split, data).items()
-        ]
+        }
 
     return {
         "data": sentences,
@@ -182,10 +179,7 @@ if __name__ == "__main__":
     num_folds = 3
 
     experiment = {
-        "crosseval": (
-            crosseval_on_concat_dataset(dataset, num_folds),
-            kwargs_builder,
-        ),
+        "crosseval": (crosseval_on_concat_dataset(dataset, num_folds), kwargs_builder,),
         "dev-test-preserving": (
             shufflesplit_trainset_only(dataset, num_folds),
             kwargs_builder_maintaining_train_dev_test,
