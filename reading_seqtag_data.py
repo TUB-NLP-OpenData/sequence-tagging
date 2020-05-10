@@ -4,11 +4,12 @@ from typing import Dict, NamedTuple, Tuple, List
 from allennlp.data.dataset_readers import Conll2003DatasetReader
 from reading_scierc_data import read_scierc_seqs
 
+TaggedSequence = List[Tuple[str, str]]
 
 class TaggedSeqsDataSet(NamedTuple):
-    train: List[List[Tuple[str, str]]]
-    dev: List[List[Tuple[str, str]]]
-    test: List[List[Tuple[str, str]]]
+    train: List[TaggedSequence]
+    dev: List[TaggedSequence]
+    test: List[TaggedSequence]
 
 
 def read_scierc_data(path)->TaggedSeqsDataSet:
@@ -83,8 +84,3 @@ def get_JNLPBA_sequences(jnlpda_data_path)->List[List[Tuple[str, str]]]:
         for sent in sequences
     ]
     return data
-
-if __name__ == "__main__":
-    path = "/home/tilo/data/germEval_2014"
-    data = read_germEval_2014_data(path)
-    print()

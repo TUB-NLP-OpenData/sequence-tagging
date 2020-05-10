@@ -1,6 +1,5 @@
-import re
 from typing import List, Dict, Tuple, NamedTuple
-from flair.data import Sentence, Token, Corpus, Dictionary
+from flair.data import Sentence, Token
 from torch.utils.data import Dataset
 
 from seq_tag_util import char_precise_spans_to_token_spans
@@ -69,22 +68,6 @@ def get_scierc_data_as_flair_sentences(data_path):
             "%s/%s" % (data_path, jsonl_file)
         )
     ]
-    return sentences
-
-
-def build_flair_sentences_from_sequences(
-    sequences: List[List[Tuple[str, str]]]
-) -> List[Sentence]:
-
-    sentences = []
-    for seq in sequences:
-        sentence: Sentence = Sentence()
-        [sentence.add_token(Token(tok)) for tok, tag in seq]
-        [
-            flair_token.add_tag(TAG_TYPE, tag)
-            for (token, tag), flair_token in zip(seq, sentence)
-        ]
-        sentences.append(sentence)
     return sentences
 
 

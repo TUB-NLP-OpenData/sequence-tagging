@@ -3,15 +3,13 @@ import multiprocessing
 import os
 import shutil
 from functools import partial
-from pprint import pprint
 from time import time
-from typing import List, Tuple
+from typing import List
 
 import torch
 from flair.data import Sentence, Corpus
 from flair.embeddings import (
     TokenEmbeddings,
-    WordEmbeddings,
     StackedEmbeddings,
     BertEmbeddings,
 )
@@ -29,19 +27,13 @@ from eval_jobs import (
 from mlutil.crossvalidation import calc_mean_std_scores, ScoreTask
 from reading_scierc_data import (
     TAG_TYPE,
-    build_flair_sentences_from_sequences,
 )
+from flair_util import build_flair_sentences_from_sequences, build_tag_dict
 from reading_seqtag_data import (
     TaggedSeqsDataSet,
     read_JNLPBA_data,
 )
 from seq_tag_util import bilou2bio, calc_seqtag_f1_scores
-
-
-def build_tag_dict(sequences: List[List[Tuple[str, str]]], tag_type):
-    sentences = build_flair_sentences_from_sequences(sequences)
-    corpus = Corpus(train=sentences, dev=[], test=[])
-    return corpus.make_tag_dictionary(tag_type)
 
 
 def score_flair_tagger(
@@ -60,12 +52,12 @@ def score_flair_tagger(
     corpus = Corpus(train=train_sentences, dev=dev_sentences, test=test_sentences)
 
     embedding_types: List[TokenEmbeddings] = [
-        WordEmbeddings("glove"),
-        # BertEmbeddings("bert-base-cased", layers="-1")
+        # WordEmbeddings("glove"),
+        BertEmbeddings("bert-base-cased", layers="-1")
     ]
     embeddings: StackedEmbeddings = StackedEmbeddings(embeddings=embedding_types)
     tagger: SequenceTagger = SequenceTagger(
-        hidden_size=64,  # 200 with Bert; 64 with glove
+        hidden_size=200,  # 200 with Bert; 64 with glove
         rnn_layers=1,
         embeddings=embeddings,
         tag_dictionary=tag_dictionary,
@@ -87,7 +79,7 @@ def score_flair_tagger(
     trainer.train(
         base_path=save_path,
         learning_rate=0.001,
-        mini_batch_size=128,  # 6 with Bert, 128 with glove
+        mini_batch_size=6,  # 6 with Bert, 128 with glove
         max_epochs=params["max_epochs"],
         patience=999,
         save_final_model=False,
