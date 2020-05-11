@@ -94,19 +94,14 @@ def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
         label_list=ner_labels,
     )
 
-    # 3. Create a DataSilo that loads several datasets (train/dev/test), provides DataLoaders for them and calculates a few descriptive statistics of our datasets
-
     data_silo = DataSilo(
         processor=processor, batch_size=batch_size, automatic_loading=False
     )
     data_silo._load_data(
-        {"%s_dicts" % split_name: d for split_name, d in data_dicts.items()}
+        **{"%s_dicts" % split_name: d for split_name, d in data_dicts.items()}
     )
 
-    # 4. Create an AdaptiveModel
-    # a) which consists of a pretrained language model as a basis
     language_model = LanguageModel.load(lang_model)
-    # b) and a prediction head on top that is suited for our task => NER
     prediction_head = TokenClassificationHeadPredictSequence(num_labels=len(ner_labels))
 
     model = AdaptiveModel(
@@ -117,7 +112,6 @@ def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
         device=device,
     )
 
-    # 5. Create an optimizer
     model, optimizer, lr_schedule = initialize_optimizer(
         model=model,
         learning_rate=1e-5,
@@ -126,7 +120,6 @@ def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
         device=device,
     )
 
-    # 6. Feed everything to the Trainer, which keeps care of growing our model into powerful plant and evaluates it from time to time
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -146,11 +139,6 @@ def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
     # model.save(save_dir)
     # processor.save(save_dir)
 
-    # 9. Load it & harvest your fruits (Inference)
-    # basic_texts = [
-    #     {"text": "Schartau sagte dem Tagesspiegel, dass Fischer ein Idiot sei"},
-    #     {"text": "Martin Müller spielt Handball in Berlin"},
-    # ]
     inferencer = Inferencer(model, processor, task_type="ner", gpu=True, batch_size=16)
 
     def predict_iob(dicts):
@@ -165,7 +153,7 @@ def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
     }
 
 
-def build_fard_data_dicts(dataset: TaggedSeqsDataSet):
+def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
     return {
         split_name: build_farm_data(split_data)
         for split_name, split_data in dataset._asdict().items()
@@ -182,16 +170,17 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
     @staticmethod
     def build_task_data(params, data_supplier) -> Dict[str, Any]:
         dataset: TaggedSeqsDataSet = data_supplier()
-
+        dataset_dict: Dict[str, List[TaggedSequence]] = dataset._asdict()
         ner_labels = ["[PAD]", "X"] + list(
             set(
                 tag
-                for taggedseqs in dataset._asdict().values()
+                for taggedseqs in dataset_dict.values()
                 for taggedseq in taggedseqs
                 for tok, tag in taggedseq
             )
         )
-        data = build_fard_data_dicts(dataset)
+
+        data = build_farm_data_dicts(dataset)
         return {
             "data": data,
             "params": params,
