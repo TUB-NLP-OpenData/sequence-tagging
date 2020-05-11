@@ -28,7 +28,7 @@ from eval_jobs import EvalJob, shufflesplit_trainset_only
 from experiment_util import SeqTagScoreTask
 from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsDataSet
-from seq_tag_util import Sequences
+from seq_tag_util import Sequences, BIO, bilou2bio
 
 
 class TokenClassificationHeadPredictSequence(TokenClassificationHead):
@@ -52,7 +52,6 @@ def build_farm_data(data: List[TaggedSequence]):
     return [_build_dict(datum) for datum in data[:100]]
 
 
-
 def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
     return {
         split_name: build_farm_data(split_data)
@@ -66,18 +65,15 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         cls, job: EvalJob, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
 
-
-
         set_all_seeds(seed=42)
         device, n_gpu = initialize_device_settings(use_cuda=True)
         n_epochs = 4
         evaluate_every = 400
 
-
-
         language_model = LanguageModel.load(task_data["lang_model"])
         prediction_head = TokenClassificationHeadPredictSequence(
-            num_labels=task_data["num_labels"])
+            num_labels=task_data["num_labels"]
+        )
 
         model = AdaptiveModel(
             language_model=language_model,
@@ -113,13 +109,18 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         # model.save(save_dir)
         # processor.save(save_dir)
 
-        inferencer = Inferencer(model, task_data["processor"], task_type="ner",
-                                batch_size=16)
+        inferencer = Inferencer(
+            model,
+            task_data["processor"],
+            task_type="ner",
+            batch_size=16,
+            num_processes=8,
+        )
 
         def predict_iob(dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
-            prediction = [seq for batch in batches for seq in batch]
-            targets = [d["ner_label"] for d in dicts]
+            prediction = [bilou2bio(seq) for batch in batches for seq in batch]
+            targets = [bilou2bio(d["ner_label"]) for d in dicts]
             return prediction, targets
 
         return {
@@ -149,9 +150,9 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         ml_logger = MLFlowLogger(
             tracking_uri=os.environ["HOME"] + "/data/mlflow_experiments/mlruns"
         )
-        ml_logger.init_experiment(experiment_name="Sequence_Tagging",
-                                  run_name="Run_ner")
-
+        ml_logger.init_experiment(
+            experiment_name="Sequence_Tagging", run_name="Run_ner"
+        )
 
         lang_model = "bert-base-cased"
         do_lower_case = False
@@ -170,7 +171,10 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         )
 
         data_silo = DataSilo(
-            processor=processor, batch_size=batch_size, automatic_loading=False
+            processor=processor,
+            batch_size=batch_size,
+            automatic_loading=False,
+            max_processes=4,
         )
 
         farm_data = build_farm_data_dicts(dataset)
@@ -179,10 +183,10 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         )
 
         return {
-            "lang_model":lang_model,
+            "lang_model": lang_model,
             "num_labels": len(ner_labels),
-            "ml_logger":ml_logger,
-            "data_dicts":farm_data,
+            "ml_logger": ml_logger,
+            "data_dicts": farm_data,
             "data_silo": data_silo,
             "processor": processor,
             "params": params,
