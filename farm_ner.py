@@ -29,6 +29,7 @@ from experiment_util import SeqTagScoreTask
 from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsDataSet
 from seq_tag_util import Sequences, BIO, bilou2bio
+from util import data_io
 
 
 class TokenClassificationHeadPredictSequence(TokenClassificationHead):
@@ -57,6 +58,9 @@ def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
         split_name: build_farm_data(split_data)
         for split_name, split_data in dataset._asdict().items()
     }
+
+
+NIT = "X"  # non initial token
 
 
 class FarmSeqTagScoreTask(SeqTagScoreTask):
@@ -119,20 +123,29 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         def predict_iob(dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
-            prediction = [bilou2bio(seq) for batch in batches for seq in batch]
-            targets = [bilou2bio(d["ner_label"]) for d in dicts]
+            prediction = [
+                bilou2bio([x for x in seq if x != NIT])
+                for batch in batches
+                for seq in batch
+            ]
+            targets = [
+                bilou2bio([x for x in d["ner_label"] if x != NIT]) for d in dicts
+            ]
             return prediction, targets
 
-        return {
+        out = {
             split_name: predict_iob(split_data)
             for split_name, split_data in task_data["data_dicts"].items()
         }
+
+        data_io.write_json("out.json", out)
+        return out
 
     @staticmethod
     def build_task_data(params, data_supplier) -> Dict[str, Any]:
         dataset: TaggedSeqsDataSet = data_supplier()
         dataset_dict: Dict[str, List[TaggedSequence]] = dataset._asdict()
-        ner_labels = ["[PAD]", "X"] + list(
+        ner_labels = ["[PAD]", NIT] + list(
             set(
                 tag
                 for taggedseqs in dataset_dict.values()

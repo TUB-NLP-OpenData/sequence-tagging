@@ -66,7 +66,7 @@ def bilou2bio(tag_seq):
             bio_tags[i] = "B-" + tag_seq[i][2:]
         elif tag_seq[i].startswith("L-") or tag_seq[i].startswith("E-"):
             bio_tags[i] = "I-" + tag_seq[i][2:]
-    assert set([t[0] for t in bio_tags]).issubset(BIO)
+    assert set([t[0] for t in bio_tags]).issubset(BIO),set([t[0] for t in bio_tags])
     return bio_tags
 
 
