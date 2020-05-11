@@ -28,7 +28,7 @@ def build_conll03en_corpus(base_path: str):
     return corpus, tag_type, tag_dictionary
 
 
-def build_and_train_conll03en_flair_sequence_tagger():
+def build_and_train_conll03en_flair_sequence_tagger(corpus,tag_type,tag_dictionary):
     '''
     do not change!
     same configuration as described in
@@ -65,5 +65,5 @@ if __name__ == "__main__":
 
     corpus, tag_type, tag_dictionary = build_conll03en_corpus(base_path)
 
-    tagger = build_and_train_conll03en_flair_sequence_tagger()
+    tagger = build_and_train_conll03en_flair_sequence_tagger(corpus,tag_type,tag_dictionary)
 

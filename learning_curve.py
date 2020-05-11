@@ -4,6 +4,7 @@ from functools import partial
 
 from torch import multiprocessing
 
+import flair_score_tasks
 from experiment_util import Experiment, TRAINONLY
 from mlutil.crossvalidation import (
     calc_scores,
@@ -105,7 +106,7 @@ if __name__ == "__main__":
         TRAINONLY,
         num_folds=num_folds,
         splits=splits,
-        score_task=flair_seqtag.FlairGoveSeqTagScorer(
+        score_task=flair_score_tasks.FlairGoveSeqTagScorer(
             params={"max_epochs": 1}, data_supplier=data_supplier
         ),
     )
