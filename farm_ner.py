@@ -52,106 +52,6 @@ def build_farm_data(data: List[TaggedSequence]):
     return [_build_dict(datum) for datum in data[:100]]
 
 
-def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
-    )
-
-    ml_logger = MLFlowLogger(
-        tracking_uri=os.environ["HOME"] + "/data/mlflow_experiments/mlruns"
-    )
-    ml_logger.init_experiment(experiment_name="Sequence_Tagging", run_name="Run_ner")
-
-    ##########################
-    ########## Settings
-    ##########################
-    set_all_seeds(seed=42)
-    device, n_gpu = initialize_device_settings(use_cuda=True)
-    n_epochs = 4
-    batch_size = 32
-    evaluate_every = 400
-    lang_model = "bert-base-cased"
-    do_lower_case = False
-
-    # 1.Create a tokenizer
-    tokenizer = Tokenizer.load(
-        pretrained_model_name_or_path=lang_model, do_lower_case=do_lower_case
-    )
-
-    # 2. Create a DataProcessor that handles all the conversion from raw text into a pytorch Dataset
-    # See test/sample/ner/train-sample.txt for an example of the data format that is expected by the Processor
-    # fmt: off
-    # ner_labels = ["[PAD]", "X", "O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-OTH", "I-OTH"]
-    # fmt: on
-
-    processor = NERProcessor(
-        tokenizer=tokenizer,
-        max_seq_len=128,
-        data_dir=None,  # noqa
-        metric="seq_f1",
-        label_list=ner_labels,
-    )
-
-    data_silo = DataSilo(
-        processor=processor, batch_size=batch_size, automatic_loading=False
-    )
-    data_silo._load_data(
-        **{"%s_dicts" % split_name: d for split_name, d in data_dicts.items()}
-    )
-
-    language_model = LanguageModel.load(lang_model)
-    prediction_head = TokenClassificationHeadPredictSequence(num_labels=len(ner_labels))
-
-    model = AdaptiveModel(
-        language_model=language_model,
-        prediction_heads=[prediction_head],
-        embeds_dropout_prob=0.1,
-        lm_output_types=["per_token"],
-        device=device,
-    )
-
-    model, optimizer, lr_schedule = initialize_optimizer(
-        model=model,
-        learning_rate=1e-5,
-        n_batches=len(data_silo.loaders["train"]),
-        n_epochs=n_epochs,
-        device=device,
-    )
-
-    trainer = Trainer(
-        model=model,
-        optimizer=optimizer,
-        data_silo=data_silo,
-        epochs=n_epochs,
-        n_gpu=n_gpu,
-        lr_schedule=lr_schedule,
-        evaluate_every=evaluate_every,
-        device=device,
-    )
-
-    # 7. Let it grow
-    # trainer.train()
-
-    # 8. Hooray! You have a model. Store it:
-    # save_dir = "saved_models/bert-german-ner-tutorial"
-    # model.save(save_dir)
-    # processor.save(save_dir)
-
-    inferencer = Inferencer(model, processor, task_type="ner", gpu=True, batch_size=16)
-
-    def predict_iob(dicts):
-        batches = inferencer.inference_from_dicts(dicts=dicts)
-        prediction = [seq for batch in batches for seq in batch]
-        targets = [d["ner_label"] for d in dicts]
-        return prediction, targets
-
-    return {
-        split_name: predict_iob(split_data)
-        for split_name, split_data in data_dicts.items()
-    }
-
 
 def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
     return {
@@ -165,7 +65,67 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
     def predict_with_targets(
         cls, job: EvalJob, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
-        return ner(task_data["data"], task_data["ner_labels"])
+
+
+
+        set_all_seeds(seed=42)
+        device, n_gpu = initialize_device_settings(use_cuda=True)
+        n_epochs = 4
+        evaluate_every = 400
+
+
+
+        language_model = LanguageModel.load(task_data["lang_model"])
+        prediction_head = TokenClassificationHeadPredictSequence(
+            num_labels=task_data["num_labels"])
+
+        model = AdaptiveModel(
+            language_model=language_model,
+            prediction_heads=[prediction_head],
+            embeds_dropout_prob=0.1,
+            lm_output_types=["per_token"],
+            device=device,
+        )
+
+        model, optimizer, lr_schedule = initialize_optimizer(
+            model=model,
+            learning_rate=1e-5,
+            n_batches=len(task_data["data_silo"].loaders["train"]),
+            n_epochs=n_epochs,
+            device=device,
+        )
+
+        trainer = Trainer(
+            model=model,
+            optimizer=optimizer,
+            data_silo=task_data["data_silo"],
+            epochs=n_epochs,
+            n_gpu=n_gpu,
+            lr_schedule=lr_schedule,
+            evaluate_every=evaluate_every,
+            device=device,
+        )
+
+        trainer.train()
+
+        # 8. Hooray! You have a model. Store it:
+        # save_dir = "saved_models/bert-german-ner-tutorial"
+        # model.save(save_dir)
+        # processor.save(save_dir)
+
+        inferencer = Inferencer(model, task_data["processor"], task_type="ner",
+                                batch_size=16)
+
+        def predict_iob(dicts):
+            batches = inferencer.inference_from_dicts(dicts=dicts)
+            prediction = [seq for batch in batches for seq in batch]
+            targets = [d["ner_label"] for d in dicts]
+            return prediction, targets
+
+        return {
+            split_name: predict_iob(split_data)
+            for split_name, split_data in task_data["data_dicts"].items()
+        }
 
     @staticmethod
     def build_task_data(params, data_supplier) -> Dict[str, Any]:
@@ -180,9 +140,51 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             )
         )
 
-        data = build_farm_data_dicts(dataset)
+        logging.basicConfig(
+            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+            level=logging.INFO,
+        )
+
+        ml_logger = MLFlowLogger(
+            tracking_uri=os.environ["HOME"] + "/data/mlflow_experiments/mlruns"
+        )
+        ml_logger.init_experiment(experiment_name="Sequence_Tagging",
+                                  run_name="Run_ner")
+
+
+        lang_model = "bert-base-cased"
+        do_lower_case = False
+        batch_size = 32
+
+        tokenizer = Tokenizer.load(
+            pretrained_model_name_or_path=lang_model, do_lower_case=do_lower_case
+        )
+
+        processor = NERProcessor(
+            tokenizer=tokenizer,
+            max_seq_len=128,
+            data_dir=None,  # noqa
+            metric="seq_f1",
+            label_list=ner_labels,
+        )
+
+        data_silo = DataSilo(
+            processor=processor, batch_size=batch_size, automatic_loading=False
+        )
+
+        farm_data = build_farm_data_dicts(dataset)
+        data_silo._load_data(
+            **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
+        )
+
         return {
-            "data": data,
+            "lang_model":lang_model,
+            "num_labels": len(ner_labels),
+            "ml_logger":ml_logger,
+            "data_dicts":farm_data,
+            "data_silo": data_silo,
+            "processor": processor,
             "params": params,
             "ner_labels": ner_labels,
         }
