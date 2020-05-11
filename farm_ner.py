@@ -1,9 +1,13 @@
 """
 based on : FARM/examples/ner.py
 """
+from pprint import pprint
+
+from time import time
+
 from functools import partial
 
-from typing import List, Dict
+from typing import List, Dict, Any, Tuple
 
 import logging
 import os
@@ -20,7 +24,19 @@ from farm.modeling.tokenization import Tokenizer
 from farm.train import Trainer
 from farm.utils import set_all_seeds, MLFlowLogger, initialize_device_settings
 
+from eval_jobs import EvalJob, shufflesplit_trainset_only
+from experiment_util import SeqTagScoreTask
+from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsDataSet
+from seq_tag_util import Sequences
+
+
+class TokenClassificationHeadPredictSequence(TokenClassificationHead):
+    def formatted_preds(
+        self, logits, initial_mask, samples, return_class_probs=False, **kwargs
+    ):
+        # res = {"task": "ner", "predictions": }
+        return self.logits_to_preds(logits, initial_mask)
 
 
 def build_farm_data(data: List[TaggedSequence]):
@@ -33,10 +49,10 @@ def build_farm_data(data: List[TaggedSequence]):
         tokens, tags = zip(*tseq)
         return {"text": " ".join(tokens), "ner_label": tags}
 
-    return [_build_dict(datum) for datum in data]
+    return [_build_dict(datum) for datum in data[:100]]
 
 
-def ner(data_dicts: Dict[str, List[Dict]]):
+def ner(data_dicts: Dict[str, List[Dict]], ner_labels, params={}):
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
@@ -69,7 +85,6 @@ def ner(data_dicts: Dict[str, List[Dict]]):
     # fmt: off
     # ner_labels = ["[PAD]", "X", "O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-OTH", "I-OTH"]
     # fmt: on
-    ner_labels = build_ner_labels(data_dicts["train_dicts"])
 
     processor = NERProcessor(
         tokenizer=tokenizer,
@@ -84,13 +99,15 @@ def ner(data_dicts: Dict[str, List[Dict]]):
     data_silo = DataSilo(
         processor=processor, batch_size=batch_size, automatic_loading=False
     )
-    data_silo._load_data(**data_dicts)
+    data_silo._load_data(
+        {"%s_dicts" % split_name: d for split_name, d in data_dicts.items()}
+    )
 
     # 4. Create an AdaptiveModel
     # a) which consists of a pretrained language model as a basis
     language_model = LanguageModel.load(lang_model)
     # b) and a prediction head on top that is suited for our task => NER
-    prediction_head = TokenClassificationHead(num_labels=len(ner_labels))
+    prediction_head = TokenClassificationHeadPredictSequence(num_labels=len(ner_labels))
 
     model = AdaptiveModel(
         language_model=language_model,
@@ -122,7 +139,7 @@ def ner(data_dicts: Dict[str, List[Dict]]):
     )
 
     # 7. Let it grow
-    trainer.train()
+    # trainer.train()
 
     # 8. Hooray! You have a model. Store it:
     # save_dir = "saved_models/bert-german-ner-tutorial"
@@ -134,27 +151,81 @@ def ner(data_dicts: Dict[str, List[Dict]]):
     #     {"text": "Schartau sagte dem Tagesspiegel, dass Fischer ein Idiot sei"},
     #     {"text": "Martin Müller spielt Handball in Berlin"},
     # ]
-    # # model = Inferencer.load(save_dir)
-    # result = model.inference_from_dicts(dicts=basic_texts)
-    # print(result)
+    inferencer = Inferencer(model, processor, task_type="ner", gpu=True, batch_size=16)
 
+    def predict_iob(dicts):
+        batches = inferencer.inference_from_dicts(dicts=dicts)
+        prediction = [seq for batch in batches for seq in batch]
+        targets = [d["ner_label"] for d in dicts]
+        return prediction, targets
 
-def build_ner_labels(data: List[Dict]):
-    return list(set(tag for datum in data for tag in datum["ner_label"]))
+    return {
+        split_name: predict_iob(split_data)
+        for split_name, split_data in data_dicts.items()
+    }
 
 
 def build_fard_data_dicts(dataset: TaggedSeqsDataSet):
     return {
-        "%s_dicts" % split_name: build_farm_data(split_data)
+        split_name: build_farm_data(split_data)
         for split_name, split_data in dataset._asdict().items()
     }
 
 
+class FarmSeqTagScoreTask(SeqTagScoreTask):
+    @classmethod
+    def predict_with_targets(
+        cls, job: EvalJob, task_data: Dict[str, Any]
+    ) -> Dict[str, Tuple[Sequences, Sequences]]:
+        return ner(task_data["data"], task_data["ner_labels"])
+
+    @staticmethod
+    def build_task_data(params, data_supplier) -> Dict[str, Any]:
+        dataset: TaggedSeqsDataSet = data_supplier()
+
+        ner_labels = ["[PAD]", "X"] + list(
+            set(
+                tag
+                for taggedseqs in dataset._asdict().values()
+                for taggedseq in taggedseqs
+                for tok, tag in taggedseq
+            )
+        )
+        data = build_fard_data_dicts(dataset)
+        return {
+            "data": data,
+            "params": params,
+            "ner_labels": ner_labels,
+        }
+
+
 if __name__ == "__main__":
+    from json import encoder
+
+    encoder.FLOAT_REPR = lambda o: format(o, ".2f")
+
     data_supplier = partial(
-        read_JNLPBA_data, path=os.environ["HOME"] + "/hpc/scibert/data/ner/JNLPBA"
+        read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
     )
     dataset = data_supplier()
+    num_folds = 1
 
-    ner(build_fard_data_dicts(dataset))
-    print()
+    splits = shufflesplit_trainset_only(dataset, num_folds)
+    n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
+
+    exp_name = "flair-glove"
+    task = FarmSeqTagScoreTask(params={"bla": 1}, data_supplier=data_supplier)
+    start = time()
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
+    duration = time() - start
+    print(
+        "farm-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
+        % (num_folds, n_jobs, duration)
+    )
+    exp_results = {
+        "scores": m_scores_std_scores,
+        "overall-time": duration,
+        "num-folds": num_folds,
+    }
+    pprint(exp_results)
+    # data_io.write_json("%s.json" % exp_name, exp_results)

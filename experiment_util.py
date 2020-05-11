@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from typing import List, Any, Callable, Dict, Tuple
 
+from eval_jobs import EvalJob
 from reading_seqtag_data import TaggedSequence
 from seq_tag_util import calc_seqtag_f1_scores, Sequences
 from util.worker_pool import GenericTask
@@ -16,7 +17,7 @@ class Experiment:
     name: str
     mode: str
     num_folds: int
-    splits: List[Any]
+    jobs: List[EvalJob]
     score_task: GenericTask
 
     def __str__(self):
@@ -29,19 +30,17 @@ class SeqTagScoreTask(GenericTask):
         super().__init__(**task_params)
 
     @classmethod
-    def process(cls, job, task_data: Dict[str, Any]):
+    def process(cls, job:EvalJob, task_data: Dict[str, Any]):
         predictions = cls.predict_with_targets(job,task_data)
         return {
             split_name: calc_seqtag_f1_scores(preds,targets)
             for split_name, (preds,targets) in predictions.items()
         }
 
-        pass
-
     @classmethod
     @abstractmethod
     def predict_with_targets(
-        cls, job, task_data: Dict[str, Any]
+        cls, job:EvalJob, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         raise NotImplementedError
 

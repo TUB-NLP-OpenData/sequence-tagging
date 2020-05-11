@@ -26,9 +26,12 @@ def shufflesplit_trainset_only(
     return splits
 
 
+LearnCurveJob = Tuple[float, EvalJob]
+
+
 def shufflesplit_trainset_only_trainsize_range(
     dataset: TaggedSeqsDataSet, num_folds=3, train_sizes=[0.1, 0.5, 0.99]
-) -> List[Tuple[float, EvalJob]]:
+) -> List[LearnCurveJob]:
     splits = [
         (train_size, _build_split_devtest_fix(train, dataset))
         for train_size in train_sizes
@@ -68,7 +71,7 @@ def _build_split_numtrain(train_proportion, not_test, test):
 
 def crosseval_on_concat_dataset_trainsize_range(
     dataset_size, num_folds=3, test_size=0.2, starts=0.1, ends=1.0, steps=0.3
-) -> List[Tuple[float, EvalJob]]:
+) -> List[LearnCurveJob]:
     train_sizes = build_train_sizes(starts, ends, steps)
 
     def calc_proportion_of_overall_dataset(rel_train_size, not_test):
