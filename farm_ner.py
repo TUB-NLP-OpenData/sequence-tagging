@@ -1,7 +1,12 @@
-'''
+"""
 based on : FARM/examples/ner.py
-'''
+"""
+from functools import partial
+
+from typing import List
+
 import logging
+import os
 from pathlib import Path
 
 from farm.data_handler.data_silo import DataSilo
@@ -15,16 +20,32 @@ from farm.modeling.tokenization import Tokenizer
 from farm.train import Trainer
 from farm.utils import set_all_seeds, MLFlowLogger, initialize_device_settings
 
+from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsDataSet
 
-def ner():
+def build_farm_data(data: List[TaggedSequence]):
+    """
+    farm wants it like this: {'text': 'Ereignis und Erzählung oder :', 'ner_label': ['O', 'O', 'O', 'O', 'O']}
+    the text-field is build by `"text": " ".join(sentence)` see utils.py line 141 in FARM repo
+    """
+
+    def _build_dict(tseq: TaggedSequence):
+        tokens, tags = zip(*tseq)
+        return {"text": " ".join(tokens), "ner_label": tags}
+
+    return [_build_dict(datum) for datum in data]
+
+
+def ner(dataset:TaggedSeqsDataSet):
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
 
-    ml_logger = MLFlowLogger(tracking_uri="https://public-mlflow.deepset.ai/")
-    ml_logger.init_experiment(experiment_name="Public_FARM", run_name="Run_ner")
+    ml_logger = MLFlowLogger(
+        tracking_uri=os.environ["HOME"] + "/data/mlflow_experiments/mlruns"
+    )
+    ml_logger.init_experiment(experiment_name="Sequence_Tagging", run_name="Run_ner")
 
     ##########################
     ########## Settings
@@ -44,14 +65,33 @@ def ner():
 
     # 2. Create a DataProcessor that handles all the conversion from raw text into a pytorch Dataset
     # See test/sample/ner/train-sample.txt for an example of the data format that is expected by the Processor
+    # fmt: off
     ner_labels = ["[PAD]", "X", "O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-OTH", "I-OTH"]
+    # fmt: on
 
     processor = NERProcessor(
-        tokenizer=tokenizer, max_seq_len=128, data_dir=Path("../data/conll03-de"), delimiter=" ", metric="seq_f1", label_list=ner_labels
+        tokenizer=tokenizer,
+        max_seq_len=128,
+        data_dir=Path(os.environ["HOME"] + "/data/farm_data/conll03-de"),
+        delimiter=" ",
+        metric="seq_f1",
+        label_list=ner_labels,
     )
+    # processor = NERProcessor(
+    #     tokenizer=tokenizer,
+    #     max_seq_len=128,
+    #     data_dir=None,
+    #     metric="seq_f1",
+    #     label_list=ner_labels,  # noqa
+    # )
 
     # 3. Create a DataSilo that loads several datasets (train/dev/test), provides DataLoaders for them and calculates a few descriptive statistics of our datasets
     data_silo = DataSilo(processor=processor, batch_size=batch_size)
+
+    # data_silo = DataSilo(
+    #     processor=processor, batch_size=batch_size, automatic_loading=False
+    # )
+    # data_silo._load_data(train_dicts=basic_texts)
 
     # 4. Create an AdaptiveModel
     # a) which consists of a pretrained language model as a basis
@@ -96,7 +136,6 @@ def ner():
     model.save(save_dir)
     processor.save(save_dir)
 
-
     # 9. Load it & harvest your fruits (Inference)
     basic_texts = [
         {"text": "Schartau sagte dem Tagesspiegel, dass Fischer ein Idiot sei"},
@@ -108,4 +147,11 @@ def ner():
 
 
 if __name__ == "__main__":
-    ner()
+    # ner()
+    data_supplier = partial(
+        read_JNLPBA_data, path=os.environ["HOME"] + "/hpc/scibert/data/ner/JNLPBA"
+    )
+    dataset = data_supplier()
+
+    dev_dicts = build_farm_data(dataset.dev)
+    print()
