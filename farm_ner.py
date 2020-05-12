@@ -48,9 +48,9 @@ def build_farm_data(data: List[TaggedSequence]):
 
     def _build_dict(tseq: TaggedSequence):
         tokens, tags = zip(*tseq)
-        return {"text": " ".join(tokens), "ner_label": tags}
+        return {"text": " ".join(tokens), "ner_label": list(tags)}
 
-    return [_build_dict(datum) for datum in data[:100]]
+    return [_build_dict(datum) for datum in data]
 
 
 def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
@@ -68,9 +68,8 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
     def predict_with_targets(
         cls, job: EvalJob, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
+        device, n_gpu = task_data["device"], task_data["n_gpu"]
 
-        set_all_seeds(seed=42)
-        device, n_gpu = initialize_device_settings(use_cuda=True)
         n_epochs = 4
         evaluate_every = 400
 
@@ -123,14 +122,8 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         def predict_iob(dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
-            prediction = [
-                bilou2bio([x for x in seq if x != NIT])
-                for batch in batches
-                for seq in batch
-            ]
-            targets = [
-                bilou2bio([x for x in d["ner_label"] if x != NIT]) for d in dicts
-            ]
+            prediction = [seq for batch in batches for seq in batch["predictions"]]
+            targets = [bilou2bio(d["ner_label"]) for d in dicts]
             return prediction, targets
 
         out = {
@@ -195,7 +188,11 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
         )
 
+        set_all_seeds(seed=42)
+        device, n_gpu = initialize_device_settings(use_cuda=True)
         return {
+            "device": device,
+            "n_gpu": n_gpu,
             "lang_model": lang_model,
             "num_labels": len(ner_labels),
             "ml_logger": ml_logger,
@@ -221,7 +218,7 @@ if __name__ == "__main__":
     splits = shufflesplit_trainset_only(dataset, num_folds)
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
-    exp_name = "flair-glove"
+    exp_name = "farm-ner"
     task = FarmSeqTagScoreTask(params={"bla": 1}, data_supplier=data_supplier)
     start = time()
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
