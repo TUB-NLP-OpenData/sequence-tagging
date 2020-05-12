@@ -42,7 +42,7 @@ def tuple_2_dict(t):
 
 
 def calc_write_learning_curve(
-    exp: Experiment, results_path=home + "/data/seqtag_results", max_num_workers=40
+    exp: Experiment,  max_num_workers=40
 ):
     num_workers = min(
         min(max_num_workers, multiprocessing.cpu_count() - 1), exp.num_folds
@@ -50,7 +50,7 @@ def calc_write_learning_curve(
 
     name = exp.name
     print("got %d evaluations to calculate" % len(exp.jobs))
-    results_path = results_path + "/" + name
+    results_path = results_folder + "/" + name
     os.makedirs(results_path, exist_ok=True)
     start = time()
     scores = calc_scores(
@@ -89,19 +89,21 @@ if __name__ == "__main__":
     # data_path = os.environ["HOME"] + "/code/misc/scibert/data/ner/JNLPBA"
     data_supplier = partial(read_JNLPBA_data, path=data_path)
 
-    dataset: TaggedSeqsDataSet = data_supplier()
+    results_folder = home + "/data/seqtag_results/20_percent"
+    os.makedirs(results_folder, exist_ok=True)
 
-    import benchmark_flair_tagger as flair_seqtag
+
+    dataset: TaggedSeqsDataSet = data_supplier()
 
     num_folds = 1
     splits = shufflesplit_trainset_only_trainsize_range(
         TaggedSeqsDataSet(dataset.train, dataset.dev, dataset.test),
         num_folds=num_folds,
-        train_sizes=[0.1],
+        train_sizes=[0.2],
     )
 
     exp = Experiment(
-        "farm-debug",
+        "farm",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
@@ -109,14 +111,13 @@ if __name__ == "__main__":
     )
     calc_write_learning_curve(exp, max_num_workers=0)
 
-    assert False, "stop here"
     exp = Experiment(
-        "flair-debug",
+        "flair",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.FlairGoveSeqTagScorer(
-            params={"max_epochs": 1}, data_supplier=data_supplier
+            params={"max_epochs": 20}, data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
@@ -124,7 +125,7 @@ if __name__ == "__main__":
     import benchmark_spacyCrf_tagger as spacy_crf
 
     exp = Experiment(
-        "spacy-crf-debug",
+        "spacy-crf",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
