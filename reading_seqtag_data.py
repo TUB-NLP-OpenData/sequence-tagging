@@ -93,7 +93,14 @@ def read_conll03_en(path: str):
     data = dict()
     for dataset_file in ["train.txt", "dev.txt", "test.txt"]:
         file = os.path.join(path, dataset_name, dataset_file)
-        data[dataset_file.split(".")[0]] = read_ner_file(file, sep=" ")
+        data_dict = read_ner_file(file, sep=" ")
+        tagged_seqs = [
+            [(tok, tag) for tok, tag in zip(d["text"].split(" "), d["ner_label"])]
+            for d in data_dict
+        ]
+        data[dataset_file.split(".")[0]] = [
+            preprocess_sequence(ts) for ts in tagged_seqs
+        ]
 
     return TaggedSeqsDataSet(**data)
 
@@ -101,3 +108,4 @@ def read_conll03_en(path: str):
 if __name__ == "__main__":
     data_path = os.environ["HOME"] + "/data/IE/sequence_tagging_datasets"
     dataset = read_conll03_en(data_path)
+    print()
