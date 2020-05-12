@@ -78,7 +78,6 @@ TAG_TYPE = "ner"
 
 
 class FlairScoreTask(SeqTagScoreTask):
-
     @staticmethod
     def build_task_data(**task_params) -> Dict[str, Any]:
         return build_task_data_maintaining_splits(**task_params)
@@ -105,13 +104,23 @@ class FlairScoreTask(SeqTagScoreTask):
             targets = [bilou2bio([tag for token, tag in datum]) for datum in train_data]
 
             pred_sentences = tagger.predict(sentences)
+
+            SPECIAL_FLAIR_TAGS = ["<START>","<STOP>","<unk>"]
+
+            def replace_start_token_with_O(seq: List[str]):
+                return ["O" if t in SPECIAL_FLAIR_TAGS else t for t in seq]
+
             pred_data = [
-                bilou2bio([token.tags[tagger.tag_type].value for token in datum])
+                bilou2bio(
+                    replace_start_token_with_O(
+                        [token.tags[tagger.tag_type].value for token in datum]
+                    )
+                )
                 for datum in pred_sentences
             ]
             return pred_data, targets
 
-        return {n:flair_tagger_predict_bio(d) for n,d in splits.items()}
+        return {n: flair_tagger_predict_bio(d) for n, d in splits.items()}
 
     @staticmethod
     @abstractmethod
