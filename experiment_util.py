@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from typing import List, Any, Callable, Dict, Tuple
 
-from eval_jobs import EvalJob
+from eval_jobs import EvalJob, LearnCurveJob
 from reading_seqtag_data import TaggedSequence
 from seq_tag_util import calc_seqtag_f1_scores, Sequences
 from util.worker_pool import GenericTask
@@ -17,7 +17,7 @@ class Experiment:
     name: str
     mode: str
     num_folds: int
-    jobs: List[EvalJob]
+    jobs: List[LearnCurveJob]
     score_task: GenericTask
 
     def __str__(self):
