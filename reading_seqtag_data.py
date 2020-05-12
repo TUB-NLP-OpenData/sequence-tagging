@@ -1,4 +1,5 @@
 import os
+from farm.data_handler.utils import read_ner_file
 from typing import Dict, NamedTuple, Tuple, List
 
 from allennlp.data.dataset_readers import Conll2003DatasetReader
@@ -85,3 +86,18 @@ def read_germEval_2014_data(path) -> TaggedSeqsDataSet:
         for file in ["train.txt", "dev.txt", "test.txt"]
     }
     return TaggedSeqsDataSet(**dataset2sequences)
+
+
+def read_conll03_en(path: str):
+    dataset_name = "conll03-en"
+    data = dict()
+    for dataset_file in ["train.txt", "dev.txt", "test.txt"]:
+        file = os.path.join(path, dataset_name, dataset_file)
+        data[dataset_file.split(".")[0]] = read_ner_file(file, sep=" ")
+
+    return TaggedSeqsDataSet(**data)
+
+
+if __name__ == "__main__":
+    data_path = os.environ["HOME"] + "/data/IE/sequence_tagging_datasets"
+    dataset = read_conll03_en(data_path)
