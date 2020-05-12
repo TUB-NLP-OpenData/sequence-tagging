@@ -50,7 +50,7 @@ def build_farm_data(data: List[TaggedSequence]):
         tokens, tags = zip(*tseq)
         return {"text": " ".join(tokens), "ner_label": list(tags)}
 
-    return [_build_dict(datum) for datum in data]
+    return [_build_dict(datum) for datum in data[:100]]
 
 
 def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
@@ -122,8 +122,22 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         def predict_iob(dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
-            prediction = [seq for batch in batches for seq in batch["predictions"]]
+            prediction = [
+                bilou2bio([t if t != NIT else "O" for t in seq])
+                for batch in batches
+                for seq in batch
+            ]
             targets = [bilou2bio(d["ner_label"]) for d in dicts]
+            idx_of_invalid_predictions = [
+                k
+                for k, (p, t) in enumerate(zip(prediction, targets))
+                if len(p) != len(t)
+            ]
+            print(
+                "WARNING: got %d invalid predictions" % len(idx_of_invalid_predictions)
+            )
+            [prediction.pop(i) for i in idx_of_invalid_predictions]
+            [targets.pop(i) for i in idx_of_invalid_predictions]
             return prediction, targets
 
         out = {
