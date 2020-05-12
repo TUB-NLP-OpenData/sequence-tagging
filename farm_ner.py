@@ -120,7 +120,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             gpu=True,
         )
 
-        def predict_iob(dicts):
+        def predict_iob(sn,dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
             prediction = [
                 bilou2bio([t if t != NIT else "O" for t in seq])
@@ -132,8 +132,8 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
                 (p, t) for (p, t) in zip(prediction, targets) if len(p) == len(t)
             ]
             print(
-                "WARNING: got %d invalid predictions"
-                % (len(targets) - len(pred_target))
+                "WARNING: %s got %d invalid predictions"
+                % (sn,len(targets) - len(pred_target))
             )
             prediction, targets = [list(x) for x in zip(*pred_target)]
 
@@ -142,11 +142,10 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             return prediction, targets
 
         out = {
-            split_name: predict_iob(split_data)
+            split_name: predict_iob(split_name,split_data)
             for split_name, split_data in task_data["data_dicts"].items()
         }
 
-        data_io.write_json("out.json", out)
         return out
 
     @staticmethod
@@ -165,7 +164,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
             datefmt="%m/%d/%Y %H:%M:%S",
-            level=logging.INFO,
+            level=logging.WARNING,
         )
 
         ml_logger = MLFlowLogger(
