@@ -6,6 +6,7 @@ from torch import multiprocessing
 
 import flair_score_tasks
 from experiment_util import Experiment, TRAINONLY
+from farm_ner import FarmSeqTagScoreTask
 from mlutil.crossvalidation import (
     calc_scores,
     calc_mean_and_std,
@@ -48,12 +49,12 @@ def calc_write_learning_curve(
     )
 
     name = exp.name
-    print("got %d evaluations to calculate" % len(exp.splits))
+    print("got %d evaluations to calculate" % len(exp.jobs))
     results_path = results_path + "/" + name
     os.makedirs(results_path, exist_ok=True)
     start = time()
     scores = calc_scores(
-        exp.score_task, [split for train_size, split in exp.splits], n_jobs=num_workers
+        exp.score_task, [split for train_size, split in exp.jobs], n_jobs=num_workers
     )
     duration = time() - start
     meta_data = {
@@ -64,7 +65,7 @@ def calc_write_learning_curve(
     data_io.write_json(results_path + "/meta_datas.json", meta_data)
     print("calculating learning-curve for %s took %0.2f seconds" % (name, duration))
     results = groupandsort_by_first(
-        zip([train_size for train_size, _ in exp.splits], scores)
+        zip([train_size for train_size, _ in exp.jobs], scores)
     )
     data_io.write_json(results_path + "/learning_curve.json", results)
 
@@ -89,8 +90,6 @@ if __name__ == "__main__":
     data_supplier = partial(read_JNLPBA_data, path=data_path)
 
     dataset: TaggedSeqsDataSet = data_supplier()
-    # sentences = dataset.train + dataset.dev + dataset.test
-    # dataset_size = len(sentences)
 
     import benchmark_flair_tagger as flair_seqtag
 
@@ -102,10 +101,20 @@ if __name__ == "__main__":
     )
 
     exp = Experiment(
+        "farm-debug",
+        TRAINONLY,
+        num_folds=num_folds,
+        jobs=splits,
+        score_task=FarmSeqTagScoreTask(params={}, data_supplier=data_supplier),
+    )
+    calc_write_learning_curve(exp, max_num_workers=0)
+
+    assert False, "stop here"
+    exp = Experiment(
         "flair-debug",
         TRAINONLY,
         num_folds=num_folds,
-        splits=splits,
+        jobs=splits,
         score_task=flair_score_tasks.FlairGoveSeqTagScorer(
             params={"max_epochs": 1}, data_supplier=data_supplier
         ),
@@ -118,7 +127,7 @@ if __name__ == "__main__":
         "spacy-crf-debug",
         TRAINONLY,
         num_folds=num_folds,
-        splits=splits,
+        jobs=splits,
         score_task=spacy_crf.SpacyCrfScorer(
             params={"c1": 0.5, "c2": 0.0}, data_supplier=data_supplier
         ),
