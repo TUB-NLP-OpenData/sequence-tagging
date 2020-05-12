@@ -4,7 +4,7 @@ from typing import Dict, NamedTuple, Tuple, List
 
 from allennlp.data.dataset_readers import Conll2003DatasetReader
 from reading_scierc_data import read_scierc_seqs
-from seq_tag_util import iob2iobes
+from seq_tag_util import iob2iobes, BIOES
 
 TaggedSequence = List[Tuple[str, str]]
 
@@ -17,7 +17,9 @@ class TaggedSeqsDataSet(NamedTuple):
 
 def preprocess_sequence(seq: TaggedSequence) -> TaggedSequence:
     tags = [tag for tok, tag in seq]
-    return [(tok, tag) for (tok, _), tag in zip(seq, iob2iobes(tags))]
+    prepro_tags = iob2iobes(tags)
+    assert set([t[0] for t in prepro_tags]).issubset(BIOES), prepro_tags
+    return [(tok, tag) for (tok, _), tag in zip(seq,prepro_tags )]
 
 
 def read_scierc_data(path) -> TaggedSeqsDataSet:
@@ -98,9 +100,9 @@ def read_conll03_en(path: str):
             [(tok, tag) for tok, tag in zip(d["text"].split(" "), d["ner_label"])]
             for d in data_dict
         ]
-        data[dataset_file.split(".")[0]] = [
-            preprocess_sequence(ts) for ts in tagged_seqs
-        ]
+        split_name = dataset_file.split(".")[0]
+        prepro_tagseqs = [preprocess_sequence(ts) for ts in tagged_seqs]
+        data[split_name] = prepro_tagseqs
 
     return TaggedSeqsDataSet(**data)
 

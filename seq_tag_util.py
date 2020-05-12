@@ -7,20 +7,22 @@ from sklearn import metrics
 from seqeval.metrics import f1_score
 
 BIO = {"B", "I", "O"}
+BIOES = {"B", "I", "O", "E", "S"}
 Sequences = List[List[str]]
+
 
 def calc_seqtag_f1_scores(
     predictions: Sequences, targets: Sequences,
 ):
     assert set([t[0] for s in targets for t in s]).issubset(BIO)
     assert set([t[0] for s in predictions for t in s]).issubset(BIO)
-    assert all([len(t)==len(p) for t,p in zip(targets,predictions)])
+    assert all([len(t) == len(p) for t, p in zip(targets, predictions)])
     _, _, f1_train = spanlevel_pr_re_f1(predictions, targets)
     # tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, predictions)
     return {
         # "token-level": tokenlevel_scores,
         "f1-micro-spanlevel": f1_train,
-        "seqeval-f1":f1_score(targets,predictions)
+        "seqeval-f1": f1_score(targets, predictions),
     }
 
 
@@ -47,8 +49,9 @@ def correct_biotags(tag_seq):
             corr_tag_seq[i] = "B-" + current_label
     return corr_tag_seq
 
-def iob2iobes(tags:List[str]):
-    Label = namedtuple("Label","value") # just to please flair
+
+def iob2iobes(tags: List[str]):
+    Label = namedtuple("Label", "value")  # just to please flair
     tags = [Label(tag) for tag in tags]
     iob2(tags)
     tags = iob_iobes(tags)
@@ -69,7 +72,7 @@ def bilou2bio(tag_seq):
             bio_tags[i] = "B-" + tag_seq[i][2:]
         elif tag_seq[i].startswith("L-") or tag_seq[i].startswith("E-"):
             bio_tags[i] = "I-" + tag_seq[i][2:]
-    assert set([t[0] for t in bio_tags]).issubset(BIO),set([t[0] for t in bio_tags])
+    assert set([t[0] for t in bio_tags]).issubset(BIO), set([t[0] for t in bio_tags])
     return bio_tags
 
 
@@ -88,9 +91,7 @@ def spanlevel_pr_re_f1(label_pred, label_correct):
     return prec, rec, f1
 
 
-def calc_seqtag_tokenlevel_scores(
-    gold_seqs: Sequences, pred_seqs: Sequences
-):
+def calc_seqtag_tokenlevel_scores(gold_seqs: Sequences, pred_seqs: Sequences):
     gold_flattened = [l for seq in gold_seqs for l in seq]
     pred_flattened = [l for seq in pred_seqs for l in seq]
     assert len(gold_flattened) == len(pred_flattened) and len(gold_flattened) > 0
