@@ -36,7 +36,6 @@ class TokenClassificationHeadPredictSequence(TokenClassificationHead):
     def formatted_preds(
         self, logits, initial_mask, samples, return_class_probs=False, **kwargs
     ):
-        # res = {"task": "ner", "predictions": }
         return self.logits_to_preds(logits, initial_mask)
 
 
@@ -50,7 +49,7 @@ def build_farm_data(data: List[TaggedSequence]):
         tokens, tags = zip(*tseq)
         return {"text": " ".join(tokens), "ner_label": list(tags)}
 
-    return [_build_dict(datum) for datum in data[:100]]
+    return [_build_dict(datum) for datum in data]
 
 
 def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
@@ -70,7 +69,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         device, n_gpu = task_data["device"], task_data["n_gpu"]
 
-        n_epochs = 4
+        n_epochs = 1
         evaluate_every = 400
 
         language_model = LanguageModel.load(task_data["lang_model"])
@@ -118,6 +117,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             task_type="ner",
             batch_size=16,
             num_processes=8,
+            gpu=True,
         )
 
         def predict_iob(dicts):
@@ -128,16 +128,17 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
                 for seq in batch
             ]
             targets = [bilou2bio(d["ner_label"]) for d in dicts]
-            idx_of_invalid_predictions = [
-                k
-                for k, (p, t) in enumerate(zip(prediction, targets))
-                if len(p) != len(t)
+            pred_target = [
+                (p, t) for (p, t) in zip(prediction, targets) if len(p) == len(t)
             ]
             print(
-                "WARNING: got %d invalid predictions" % len(idx_of_invalid_predictions)
+                "WARNING: got %d invalid predictions"
+                % (len(targets) - len(pred_target))
             )
-            [prediction.pop(i) for i in idx_of_invalid_predictions]
-            [targets.pop(i) for i in idx_of_invalid_predictions]
+            prediction, targets = [list(x) for x in zip(*pred_target)]
+
+            assert all([len(t) == len(p) for t, p in zip(targets, prediction)])
+            assert len(targets) == len(prediction)
             return prediction, targets
 
         out = {

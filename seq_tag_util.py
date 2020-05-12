@@ -4,6 +4,7 @@ from typing import List, Tuple, NamedTuple
 import numpy as np
 from flair.data import iob2, iob_iobes
 from sklearn import metrics
+from seqeval.metrics import f1_score
 
 BIO = {"B", "I", "O"}
 Sequences = List[List[str]]
@@ -13,11 +14,13 @@ def calc_seqtag_f1_scores(
 ):
     assert set([t[0] for s in targets for t in s]).issubset(BIO)
     assert set([t[0] for s in predictions for t in s]).issubset(BIO)
+    assert all([len(t)==len(p) for t,p in zip(targets,predictions)])
     _, _, f1_train = spanlevel_pr_re_f1(predictions, targets)
-    tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, predictions)
+    # tokenlevel_scores = calc_seqtag_tokenlevel_scores(targets, predictions)
     return {
-        "token-level": tokenlevel_scores,
+        # "token-level": tokenlevel_scores,
         "f1-micro-spanlevel": f1_train,
+        "seqeval-f1":f1_score(targets,predictions)
     }
 
 
