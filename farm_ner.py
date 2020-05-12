@@ -31,6 +31,15 @@ from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsData
 from seq_tag_util import Sequences, BIO, bilou2bio
 from util import data_io
 
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    level=logging.WARNING,
+)
+logging.disable(logging.CRITICAL)
+logger = logging.getLogger() #TODO(tilo): this is still not working!
+logger.setLevel(logging.WARNING)
+
 
 class TokenClassificationHeadPredictSequence(TokenClassificationHead):
     def formatted_preds(
@@ -159,12 +168,6 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
                 for taggedseq in taggedseqs
                 for tok, tag in taggedseq
             )
-        )
-
-        logging.basicConfig(
-            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-            datefmt="%m/%d/%Y %H:%M:%S",
-            level=logging.WARNING,
         )
 
         ml_logger = MLFlowLogger(
