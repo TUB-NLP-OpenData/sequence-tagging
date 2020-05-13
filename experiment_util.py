@@ -21,7 +21,7 @@ class Experiment:
     score_task: GenericTask
 
     def __str__(self):
-        return str({k: v for k, v in self.__dict__.items() if k not in ["splits"]})
+        return str({k: v for k, v in self.__dict__.items() if k not in ["jobs"]})
 
 
 class SeqTagScoreTask(GenericTask):
