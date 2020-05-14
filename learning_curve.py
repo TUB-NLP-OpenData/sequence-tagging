@@ -1,3 +1,5 @@
+from pprint import pprint
+
 import os
 from collections import OrderedDict
 from functools import partial
@@ -19,7 +21,8 @@ from itertools import groupby
 from time import time
 from typing import Dict, List, Tuple, Any, Iterable
 
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet
+from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet, \
+    read_conll03_en
 from util import data_io
 
 
@@ -64,6 +67,7 @@ def calc_write_learning_curve(
     }
     data_io.write_json(results_path + "/meta_datas.json", meta_data)
     print("calculating learning-curve for %s took %0.2f seconds" % (name, duration))
+    pprint(scores)
     results = groupandsort_by_first(
         zip([train_size for train_size, _ in exp.jobs], scores)
     )
@@ -86,20 +90,23 @@ if __name__ == "__main__":
     #     process_fun=char_to_token_level,
     # )
     data_path = os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
-    # data_path = os.environ["HOME"] + "/code/misc/scibert/data/ner/JNLPBA"
     data_supplier = partial(read_JNLPBA_data, path=data_path)
 
-    results_folder = home + "/data/seqtag_results/20_percent"
+    # data_supplier = partial(
+    #     read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
+    # )
+
+    results_folder = home + "/data/seqtag_results/learn_curve_JNLPBA"
     os.makedirs(results_folder, exist_ok=True)
 
 
     dataset: TaggedSeqsDataSet = data_supplier()
 
-    num_folds = 1
+    num_folds = 3
     splits = shufflesplit_trainset_only_trainsize_range(
         TaggedSeqsDataSet(dataset.train, dataset.dev, dataset.test),
         num_folds=num_folds,
-        train_sizes=[0.2],
+        train_sizes=[0.2,0.5,0.99],
     )
 
     exp = Experiment(
@@ -112,12 +119,23 @@ if __name__ == "__main__":
     calc_write_learning_curve(exp, max_num_workers=0)
 
     exp = Experiment(
+        "flair-pooled",
+        TRAINONLY,
+        num_folds=num_folds,
+        jobs=splits,
+        score_task=flair_score_tasks.BiLSTMConll03enPooled(
+            params={}, data_supplier=data_supplier
+        ),
+    )
+    calc_write_learning_curve(exp, max_num_workers=0)
+
+    exp = Experiment(
         "flair",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
-        score_task=flair_score_tasks.FlairGoveSeqTagScorer(
-            params={"max_epochs": 20}, data_supplier=data_supplier
+        score_task=flair_score_tasks.BiLSTMConll03en(
+            params={}, data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
