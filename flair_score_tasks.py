@@ -1,7 +1,8 @@
+from flair.data import Corpus
 from typing import Dict, Callable
 
 import torch
-from flair.embeddings import StackedEmbeddings, WordEmbeddings
+from flair.embeddings import StackedEmbeddings, WordEmbeddings, FlairEmbeddings
 from flair.models import SequenceTagger
 from flair.trainers import ModelTrainer
 
@@ -54,7 +55,35 @@ class FlairGoveSeqTagScorer(FlairScoreTask):
         )
         return tagger
 
-class BiLSTMConll03en(FlairScoreTask):
+class BiLSTMConll03enPooled(FlairScoreTask):
     @staticmethod
     def build_train_sequence_tagger(corpus, tag_dictionary, params, TAG_TYPE="ner"):
         return build_and_train_conll03en_flair_sequence_tagger(corpus,TAG_TYPE,tag_dictionary)
+
+class BiLSTMConll03en(FlairScoreTask):
+    @staticmethod
+    def build_train_sequence_tagger(corpus, tag_dictionary, params, TAG_TYPE="ner"):
+        embeddings: StackedEmbeddings = StackedEmbeddings(
+            embeddings=[
+                WordEmbeddings("glove"),
+                FlairEmbeddings('news-forward'),
+                FlairEmbeddings('news-backward'),
+            ]
+        )
+        from flair.models import SequenceTagger
+        tagger: SequenceTagger = SequenceTagger(
+            hidden_size=256,
+            embeddings=embeddings,
+            tag_dictionary=tag_dictionary,
+            tag_type=TAG_TYPE,
+        )
+
+        from flair.trainers import ModelTrainer
+
+        corpus = Corpus(train=corpus.train, dev=corpus.dev, test=[])
+        trainer: ModelTrainer = ModelTrainer(tagger, corpus)
+
+        trainer.train("resources/taggers/example-ner", train_with_dev=False,
+                      max_epochs=40, save_final_model=False)  # original
+
+        return tagger
