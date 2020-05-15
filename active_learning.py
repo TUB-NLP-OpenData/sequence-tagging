@@ -9,7 +9,7 @@ from typing import List, NamedTuple, Dict, Any, Tuple
 
 from abc import abstractmethod
 
-from eval_jobs import preserve_train_dev_test
+from eval_jobs import preserve_train_dev_test, shufflesplit_trainset_only
 from experiment_util import SeqTagScoreTask, SeqTagTaskData
 import numpy as np
 
@@ -38,24 +38,25 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
     @staticmethod
     def build_task_data(**task_params) -> AlTaskData:
         data: TaggedSeqsDataSet = task_params["data_supplier"]()
+        data = TaggedSeqsDataSet(data.train[:1000], data.dev, data.test)
         return AlTaskData(params=task_params["params"], data=data)
 
     @classmethod
     def process(cls, job, task_data: AlTaskData):
-        splits = task_data.data._asdict()
         data = task_data.data.train
-        step = round(0.1 * len(data))
-        scores = np.random.random(size=(len(data)))
+        train_data_len = len(data)
+        step = round(0.1 * train_data_len)
+        scores = np.random.random(size=(train_data_len))
         eval_metrices = []
-        for k in range(3):
-            chosen_scores_idx = sorted(
-                zip(scores, range(len(data))), key=lambda x: -x[0]
-            )[:step]
-            chosen_data = [data.pop(i) for s, i in chosen_scores_idx]
-            splits["train"] = chosen_data
-            splits["corpus"] = data
+        chosen_data = []
+        for al_step in range(3):
+            idx = [
+                i for s, i in sorted(zip(scores, range(len(data))), key=lambda x: -x[0])
+            ][:step]
+            chosen_data += [data[i] for i in idx]
+            data = [d for k, d in enumerate(data) if k not in idx]
             predictions, scores = cls.predict_with_targets_and_scores(
-                splits, task_data.params
+                chosen_data, data, task_data.data.test, task_data.params
             )
             eval_metrics = {
                 split_name: calc_seqtag_f1_scores(preds, targets)
@@ -67,18 +68,18 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
         return eval_metrices
 
     @classmethod
-    def predict_with_targets_and_scores(cls, splits: Dict[str, List], params):
+    def predict_with_targets_and_scores(cls, train, corpus, test, params):
 
         tagger = SpacyCrfSuiteTagger(params=params)
-        tagger.fit(splits["train"])
+        tagger.fit(train)
 
         predictions = {
             split_name: spacycrf_predict_bio(tagger, split_data)
-            for split_name, split_data in splits.items()
+            for split_name, split_data in {"train": train, "test": test}.items()
         }
 
         probas = tagger.predict_marginals(
-            [[token for token, tag in datum] for datum in splits["corpus"]]
+            [[token for token, tag in datum] for datum in corpus]
         )
         scores = [calc_mean_entropy(sent) for sent in probas]
 
@@ -93,10 +94,9 @@ if __name__ == "__main__":
     )
     dataset = data_supplier()
     num_folds = 1
-    splits = preserve_train_dev_test(dataset, num_folds)
 
     task = ActiveLearnSpacyCrfSeqTagScoreTask(
-        params=Params(c1=0.5, c2=0.0), data_supplier=data_supplier
+        params=Params(c1=0.5, c2=0.0, max_it=3), data_supplier=data_supplier
     )
     num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
     with task as t:
