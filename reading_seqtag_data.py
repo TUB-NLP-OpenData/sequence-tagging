@@ -1,3 +1,4 @@
+import flair.datasets
 import os
 from farm.data_handler.utils import read_ner_file
 from typing import Dict, NamedTuple, Tuple, List
@@ -19,7 +20,7 @@ def preprocess_sequence(seq: TaggedSequence) -> TaggedSequence:
     tags = [tag for tok, tag in seq]
     prepro_tags = iob2iobes(tags)
     assert set([t[0] for t in prepro_tags]).issubset(BIOES), prepro_tags
-    return [(tok, tag) for (tok, _), tag in zip(seq,prepro_tags )]
+    return [(tok, tag) for (tok, _), tag in zip(seq, prepro_tags)]
 
 
 def read_scierc_data(path) -> TaggedSeqsDataSet:
@@ -105,6 +106,30 @@ def read_conll03_en(path: str):
         data[split_name] = prepro_tagseqs
 
     return TaggedSeqsDataSet(**data)
+
+
+def get_UD_English_data():
+
+    corpus = flair.datasets.UD_ENGLISH()
+    train_data_flair = corpus.train
+    test_data_flair = corpus.test
+    print("train-data-len: %d" % len(train_data_flair))
+    print("test-data-len: %d" % len(test_data_flair))
+
+    tag_type = "pos"
+
+    def filter_tags(tag):
+        return tag  # if tag_counter[tag] > 50 else 'O'
+
+    train_data = [
+        [(token.text, filter_tags(token.tags["pos"].value)) for token in datum]
+        for datum in train_data_flair
+    ]
+    test_data = [
+        [(token.text, filter_tags(token.tags["pos"].value)) for token in datum]
+        for datum in test_data_flair
+    ]
+    return train_data, test_data, tag_type
 
 
 if __name__ == "__main__":

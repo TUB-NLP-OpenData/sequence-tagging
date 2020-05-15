@@ -1,30 +1,33 @@
-import re
+import os
+
 from collections import Counter
 from pprint import pprint
 from time import time
-from typing import List, Tuple
+from typing import List, Tuple, NamedTuple
 
-import flair.datasets
 import sklearn_crfsuite
 import spacy
 from spacy.tokenizer import Tokenizer
 
-from reading_seqtag_data import read_JNLPBA_data
 from seq_tag_util import bilou2bio, spanlevel_pr_re_f1, calc_seqtag_tokenlevel_scores
+
+
+class Params(NamedTuple):
+    c1: float = 0.5
+    c2: float = 0.0
+    max_it: int = 200
 
 
 class SpacyCrfSuiteTagger(object):
     def __init__(
-        self, nlp=None, verbose=False, c1=None, c2=None,
+        self, nlp=None, verbose=False, params: Params = Params(),
     ):
 
-        self.c1, self.c2 = c1, c2
+        self.params = params
         self.spacy_nlp = (
             spacy.load("en_core_web_sm", disable=["parser"]) if nlp is None else nlp
         )
-        self.spacy_nlp.tokenizer = Tokenizer(
-            self.spacy_nlp.vocab
-        )
+        self.spacy_nlp.tokenizer = Tokenizer(self.spacy_nlp.vocab)
         self.verbose = verbose
 
     def fit(self, data: List[List[Tuple[str, str]]]):
@@ -47,9 +50,9 @@ class SpacyCrfSuiteTagger(object):
 
         self.crf = sklearn_crfsuite.CRF(
             algorithm="lbfgs",
-            c1=self.c1,
-            c2=self.c2,
-            max_iterations=200,
+            c1=self.params.c1,
+            c2=self.params.c2,
+            max_iterations=self.params.max_it,
             all_possible_transitions=True,
         )
         targets = [[tag for token, tag in datum] for datum in data]
@@ -91,45 +94,19 @@ class SpacyCrfSuiteTagger(object):
         return probas
 
 
-def get_UD_English_data():
-
-    corpus = flair.datasets.UD_ENGLISH()
-    train_data_flair = corpus.train
-    test_data_flair = corpus.test
-    print("train-data-len: %d" % len(train_data_flair))
-    print("test-data-len: %d" % len(test_data_flair))
-
-    tag_type = "pos"
-
-    def filter_tags(tag):
-        return tag  # if tag_counter[tag] > 50 else 'O'
-
-    train_data = [
-        [(token.text, filter_tags(token.tags["pos"].value)) for token in datum]
-        for datum in train_data_flair
-    ]
-    test_data = [
-        [(token.text, filter_tags(token.tags["pos"].value)) for token in datum]
-        for datum in test_data_flair
-    ]
-    return train_data, test_data, tag_type
-
-
 if __name__ == "__main__":
+    from reading_seqtag_data import read_conll03_en
 
-    from pathlib import Path
-
-    home = str(Path.home())
     # data_path = home+'/data/scierc_data/processed_data/json/'
     # datasets = read_scierc_data(data_path)
 
-    path = "../scibert/data/ner/JNLPBA"
-    datasets = read_JNLPBA_data(path)
+    path = os.environ["HOME"] + "/data/IE/seqtag_data"
+    datasets = read_conll03_en(path)
 
-    train_data, test_data = datasets["train"], datasets["test"]
+    train_data, test_data = datasets.train[:1000], datasets.test
     print("train/test-set-len: %d / %d" % (len(train_data), len(test_data)))
 
-    tagger = SpacyCrfSuiteTagger(c1=0.5, c2=0.0)
+    tagger = SpacyCrfSuiteTagger(params=Params(c1=0.5, c2=0.0, max_it=10))
     tagger.fit(train_data)
 
     y_pred = tagger.predict([[token for token, tag in datum] for datum in train_data])
