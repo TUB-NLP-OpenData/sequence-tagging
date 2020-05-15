@@ -23,10 +23,12 @@ class Experiment:
     def __str__(self):
         return str({k: v for k, v in self.__dict__.items() if k not in ["jobs"]})
 
+
 class SeqTagTaskData(NamedTuple):
-    split_fun:Callable
-    data:Dict[str,List]
-    params:Any
+    split_fun: Callable
+    data: Dict[str, List]
+    params: Any
+
 
 class SeqTagScoreTask(GenericTask):
     def __init__(self, params, data_supplier: Callable) -> None:
@@ -35,12 +37,11 @@ class SeqTagScoreTask(GenericTask):
 
     @staticmethod
     @abstractmethod
-    def build_task_data(**task_params)->SeqTagTaskData:
-        raise  NotImplementedError
+    def build_task_data(**task_params) -> SeqTagTaskData:
+        raise NotImplementedError
 
     @classmethod
-    def process(cls, job: EvalJob, task_data:SeqTagTaskData):
-        # splits = task_data["datasets_builder_fun"](job, task_data["data"])
+    def process(cls, job: EvalJob, task_data: SeqTagTaskData):
         splits = task_data.split_fun(job, task_data.data)
         predictions = cls.predict_with_targets(splits, task_data.params)
         return {
