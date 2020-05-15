@@ -2,31 +2,31 @@ import os
 from functools import partial
 from pprint import pprint
 from time import time
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 
 from torch import multiprocessing
 
-from eval_jobs import crosseval_on_concat_dataset, TaggedSeqsDataSet
-from experiment_util import split_data, split_splits, SeqTagScoreTask
+from eval_jobs import crosseval_on_concat_dataset, TaggedSeqsDataSet, \
+    shufflesplit_trainset_only
+from experiment_util import split_data, split_splits, SeqTagScoreTask, SeqTagTaskData
 from mlutil.crossvalidation import calc_mean_std_scores
-from reading_seqtag_data import read_JNLPBA_data
+from reading_seqtag_data import read_JNLPBA_data, read_conll03_en
 from seq_tag_util import bilou2bio, Sequences
-from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger
+from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger, Params
 from util import data_io
 
 
 class SpacyCrfScorer(SeqTagScoreTask):
     @staticmethod
-    def build_task_data(**task_params) -> Dict[str, Any]:
-        return build_task_data_maintaining_splits(**task_params)
+    def build_task_data(**task_params) -> SeqTagTaskData:
+        return SeqTagTaskData(**build_task_data_maintaining_splits(**task_params))
 
     @classmethod
     def predict_with_targets(
-        cls, job, task_data: Dict[str, Any]
+        cls, splits: Dict[str, List], params:Params
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
-        splits = task_data["datasets_builder_fun"](job, task_data["data"])
 
-        tagger = SpacyCrfSuiteTagger(**task_data["params"])
+        tagger = SpacyCrfSuiteTagger(params=params)
         tagger.fit(splits["train"])
 
         def pred_fun(token_tag_sequences):
@@ -58,7 +58,7 @@ def build_kwargs(data_supplier, params):
     return {
         "params": params,
         "data": data,
-        "datasets_builder_fun": split_data,
+        "split_fun": split_data,
     }
 
 
@@ -67,23 +67,23 @@ def build_task_data_maintaining_splits(params, data_supplier):
     return {
         "data": data._asdict(),
         "params": params,
-        "datasets_builder_fun": split_splits,
+        "split_fun": split_splits,
     }
 
 
 if __name__ == "__main__":
-
+    import os
     data_supplier = partial(
-        read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+        read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
     )
     dataset = data_supplier()
-    num_folds = 3
+    num_folds = 1
 
-    splits = crosseval_on_concat_dataset(dataset, num_folds, test_size=0.2)
+    splits = shufflesplit_trainset_only(dataset, num_folds,train_size=0.1)
 
     start = time()
-    task = SpacyCrfScorer(params={"c1": 0.5, "c2": 0.0}, data_supplier=data_supplier)
-    num_workers = min(multiprocessing.cpu_count() - 1, num_folds)
+    task = SpacyCrfScorer(params=Params(c1=0.5,c2=0.0), data_supplier=data_supplier)
+    num_workers = 0# min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
     print(
         "spacy+crfsuite-tagger %d folds %d workers took: %0.2f seconds"

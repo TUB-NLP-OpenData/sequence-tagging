@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from typing import List, Any, Callable, Dict, Tuple
+from typing import List, Any, Callable, Dict, Tuple, NamedTuple
 
 from eval_jobs import EvalJob, LearnCurveJob
 from reading_seqtag_data import TaggedSequence
@@ -23,24 +23,35 @@ class Experiment:
     def __str__(self):
         return str({k: v for k, v in self.__dict__.items() if k not in ["jobs"]})
 
+class SeqTagTaskData(NamedTuple):
+    split_fun:Callable
+    data:Dict[str,List]
+    params:Any
 
 class SeqTagScoreTask(GenericTask):
-    def __init__(self, params: Dict, data_supplier: Callable) -> None:
+    def __init__(self, params, data_supplier: Callable) -> None:
         task_params = {"params": params, "data_supplier": data_supplier}
         super().__init__(**task_params)
 
+    @staticmethod
+    @abstractmethod
+    def build_task_data(**task_params)->SeqTagTaskData:
+        raise  NotImplementedError
+
     @classmethod
-    def process(cls, job:EvalJob, task_data: Dict[str, Any]):
-        predictions = cls.predict_with_targets(job,task_data)
+    def process(cls, job: EvalJob, task_data:SeqTagTaskData):
+        # splits = task_data["datasets_builder_fun"](job, task_data["data"])
+        splits = task_data.split_fun(job, task_data.data)
+        predictions = cls.predict_with_targets(splits, task_data.params)
         return {
-            split_name: calc_seqtag_f1_scores(preds,targets)
-            for split_name, (preds,targets) in predictions.items()
+            split_name: calc_seqtag_f1_scores(preds, targets)
+            for split_name, (preds, targets) in predictions.items()
         }
 
     @classmethod
     @abstractmethod
     def predict_with_targets(
-        cls, job:EvalJob, task_data: Dict[str, Any]
+        cls, splits, params
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         raise NotImplementedError
 
