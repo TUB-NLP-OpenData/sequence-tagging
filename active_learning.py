@@ -1,20 +1,10 @@
-from pprint import pprint
-
-from time import time
-
-from functools import partial
-from random import random
-
-from typing import List, NamedTuple, Dict, Any, Tuple
-
-from abc import abstractmethod
-
-from eval_jobs import preserve_train_dev_test, shufflesplit_trainset_only
-from experiment_util import SeqTagScoreTask, SeqTagTaskData
 import numpy as np
+from functools import partial
+from pprint import pprint
+from typing import List, NamedTuple, Dict, Any
 
 from reading_seqtag_data import read_conll03_en, TaggedSeqsDataSet
-from seq_tag_util import calc_seqtag_f1_scores, Sequences
+from seq_tag_util import calc_seqtag_f1_scores
 from spacyCrf_score_task import spacycrf_predict_bio
 from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger, Params
 from util.worker_pool import GenericTask
@@ -38,7 +28,6 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
     @staticmethod
     def build_task_data(**task_params) -> AlTaskData:
         data: TaggedSeqsDataSet = task_params["data_supplier"]()
-        data = TaggedSeqsDataSet(data.train[:1000], data.dev, data.test)
         return AlTaskData(params=task_params["params"], data=data)
 
     @classmethod
@@ -96,7 +85,7 @@ if __name__ == "__main__":
     num_folds = 1
 
     task = ActiveLearnSpacyCrfSeqTagScoreTask(
-        params=Params(c1=0.5, c2=0.0, max_it=3), data_supplier=data_supplier
+        params=Params(c1=0.5, c2=0.0, max_it=100), data_supplier=data_supplier
     )
     num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
     with task as t:
