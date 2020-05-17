@@ -1,9 +1,11 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from typing import List, Any, Callable, Dict, Tuple, NamedTuple
+from typing import List, Any, Callable, Dict, Tuple, NamedTuple, Union
 
 from eval_jobs import EvalJob, LearnCurveJob
+
+from data_splitting import split_splits
 from reading_seqtag_data import TaggedSequence
 from seq_tag_util import calc_seqtag_f1_scores, Sequences
 from util.worker_pool import GenericTask
@@ -25,7 +27,6 @@ class Experiment:
 
 
 class SeqTagTaskData(NamedTuple):
-    split_fun: Callable
     data: Dict[str, List]
     params: Any
 
@@ -42,7 +43,7 @@ class SeqTagScoreTask(GenericTask):
 
     @classmethod
     def process(cls, job: EvalJob, task_data: SeqTagTaskData):
-        splits = task_data.split_fun(job, task_data.data)
+        splits = split_splits(job, task_data.data)
         predictions = cls.predict_with_targets(splits, task_data.params)
         return {
             split_name: calc_seqtag_f1_scores(preds, targets)
@@ -57,14 +58,4 @@ class SeqTagScoreTask(GenericTask):
         raise NotImplementedError
 
 
-def split_data(split: Dict[str, List[int]], data: List[Any]):
-    return {
-        split_name: [data[i] for i in indizes] for split_name, indizes in split.items()
-    }
 
-
-def split_splits(split: Dict[str, List[int]], data_splits: Dict[str, List[Any]]):
-    return {
-        split_name: [data_splits[split_name][i] for i in indizes]
-        for split_name, indizes in split.items()
-    }

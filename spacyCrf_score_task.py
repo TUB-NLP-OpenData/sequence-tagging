@@ -6,14 +6,11 @@ from typing import Dict, Any, Tuple, List
 
 from torch import multiprocessing
 
-from eval_jobs import (
-    crosseval_on_concat_dataset,
-    TaggedSeqsDataSet,
-    shufflesplit_trainset_only,
-)
-from experiment_util import split_data, split_splits, SeqTagScoreTask, SeqTagTaskData
+
+from data_splitting import build_data_supplier_splits_trainset_only
+from experiment_util import split_splits, SeqTagScoreTask, SeqTagTaskData
 from mlutil.crossvalidation import calc_mean_std_scores
-from reading_seqtag_data import read_JNLPBA_data, read_conll03_en
+from reading_seqtag_data import read_JNLPBA_data, read_conll03_en, TaggedSeqsDataSet
 from seq_tag_util import bilou2bio, Sequences
 from spacy_features_sklearn_crfsuite import SpacyCrfSuiteTagger, Params
 from util import data_io
@@ -32,8 +29,8 @@ def spacycrf_predict_bio(tagger, token_tag_sequences) -> Tuple:
 
 class SpacyCrfScorer(SeqTagScoreTask):
     @staticmethod
-    def build_task_data(**task_params) -> SeqTagTaskData:
-        return SeqTagTaskData(**build_task_data_maintaining_splits(**task_params))
+    def build_task_data(params, data_supplier) -> SeqTagTaskData:
+        return SeqTagTaskData(data_supplier(), params)
 
     @classmethod
     def predict_with_targets(
@@ -61,7 +58,6 @@ def build_kwargs(data_supplier, params):
     return {
         "params": params,
         "data": data,
-        "split_fun": split_data,
     }
 
 
@@ -70,23 +66,25 @@ def build_task_data_maintaining_splits(params, data_supplier):
     return {
         "data": data._asdict(),
         "params": params,
-        "split_fun": split_splits,
     }
 
 
 if __name__ == "__main__":
     import os
 
-    data_supplier = partial(
+    raw_data_supplier = partial(
         read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
     )
-    dataset = data_supplier()
-    num_folds = 1
 
-    splits = shufflesplit_trainset_only(dataset, num_folds, train_size=0.1)
+    num_folds = 1
+    data_supplier, splits = build_data_supplier_splits_trainset_only(
+        raw_data_supplier, num_folds, 0.1
+    )
 
     start = time()
-    task = SpacyCrfScorer(params=Params(c1=0.5, c2=0.0), data_supplier=data_supplier)
+    task = SpacyCrfScorer(
+        params=Params(c1=0.5, c2=0.0, max_it=2), data_supplier=data_supplier
+    )
     num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
     print(

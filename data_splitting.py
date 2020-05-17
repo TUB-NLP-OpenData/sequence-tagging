@@ -1,6 +1,6 @@
 import numpy
 from sklearn.model_selection import ShuffleSplit
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict, List, NamedTuple, Tuple, Any
 
 from reading_seqtag_data import TaggedSeqsDataSet
 
@@ -41,6 +41,36 @@ def shufflesplit_trainset_only_trainsize_range(
     ]
     return splits
 
+def build_data_supplier_splits_trainset_only(
+    raw_data_supplier, num_folds, train_size=0.1
+):
+    def data_supplier():
+        data = raw_data_supplier()
+        return data._asdict()
+
+    dataset = raw_data_supplier()
+    splits = shufflesplit_trainset_only(dataset, num_folds, train_size=train_size)
+    return data_supplier, splits
+
+
+def build_data_supplier_splits_concat(raw_data_supplier, num_folds, test_size=0.1):
+    def data_supplier():
+        dataset = raw_data_supplier()
+        data = dataset.train + dataset.dev + dataset.test
+        return {k: data for k in ["train", "dev", "test"]}
+
+    dataset = data_supplier()
+    splits = crosseval_on_concat_dataset(
+        dataset["train"], num_folds, test_size=test_size
+    )
+    return data_supplier, splits
+
+def split_splits(split: Dict[str, List[int]], data_splits: Dict[str, List]):
+    return {
+        split_name: [data_splits[split_name][i] for i in indizes]
+        for split_name, indizes in split.items()
+    }
+
 
 def build_train_sizes(starts, ends, steps):
     train_sizes = numpy.arange(starts, ends, steps).tolist() + [0.99]
@@ -48,13 +78,12 @@ def build_train_sizes(starts, ends, steps):
 
 
 def crosseval_on_concat_dataset(
-    dataset: TaggedSeqsDataSet, num_folds: int = 5, test_size=0.2
+    data:List, num_folds: int = 5, test_size=0.2
 ) -> List[EvalJob]:
-    sentences = dataset.train + dataset.dev + dataset.test
     splitter = ShuffleSplit(n_splits=num_folds, test_size=test_size, random_state=111)
     splits = [
         {"train": train, "dev": train[: round(len(train) / 5)], "test": test}
-        for train, test in splitter.split(X=range(len(sentences)))
+        for train, test in splitter.split(X=range(len(data)))
     ]
     return splits
 
