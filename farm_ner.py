@@ -66,6 +66,7 @@ NIT = "X"  # non initial token
 
 class Params(NamedTuple):
     batch_size: int
+    n_epochs:int = 5
 
 
 def build_data_silo(params: Params, splits, processor):
@@ -104,6 +105,25 @@ def build_model(n_batches, device, n_epochs, task_data):
     return lr_schedule, model, optimizer
 
 
+def predict_iob(inferencer, sn, dicts):
+    batches = inferencer.inference_from_dicts(dicts=dicts)
+    prediction = [
+        bilou2bio([t if t != NIT else "O" for t in seq])
+        for batch in batches
+        for seq in batch
+    ]
+    targets = [bilou2bio(d["ner_label"]) for d in dicts]
+    pred_target = [(p, t) for (p, t) in zip(prediction, targets) if len(p) == len(t)]
+    print(
+        "WARNING: %s got %d invalid predictions" % (sn, len(targets) - len(pred_target))
+    )
+    prediction, targets = [list(x) for x in zip(*pred_target)]
+
+    assert all([len(t) == len(p) for t, p in zip(targets, prediction)])
+    assert len(targets) == len(prediction)
+    return prediction, targets
+
+
 class FarmSeqTagScoreTask(SeqTagScoreTask):
     @classmethod
     def predict_with_targets(
@@ -115,18 +135,17 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         set_all_seeds(seed=42)
         device, n_gpu = initialize_device_settings(use_cuda=True)
 
-        n_epochs = 5
         evaluate_every = 400
 
         lr_schedule, model, optimizer = build_model(
-            len(data_silo.loaders["train"]), device, n_epochs, task_data
+            len(data_silo.loaders["train"]), device, params.n_epochs, task_data
         )
 
         trainer = Trainer(
             model=model,
             optimizer=optimizer,
             data_silo=data_silo,
-            epochs=n_epochs,
+            epochs=params.n_epochs,
             n_gpu=n_gpu,
             lr_schedule=lr_schedule,
             evaluate_every=evaluate_every,
@@ -149,29 +168,8 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             gpu=True,
         )
 
-        def predict_iob(sn, dicts):
-            batches = inferencer.inference_from_dicts(dicts=dicts)
-            prediction = [
-                bilou2bio([t if t != NIT else "O" for t in seq])
-                for batch in batches
-                for seq in batch
-            ]
-            targets = [bilou2bio(d["ner_label"]) for d in dicts]
-            pred_target = [
-                (p, t) for (p, t) in zip(prediction, targets) if len(p) == len(t)
-            ]
-            print(
-                "WARNING: %s got %d invalid predictions"
-                % (sn, len(targets) - len(pred_target))
-            )
-            prediction, targets = [list(x) for x in zip(*pred_target)]
-
-            assert all([len(t) == len(p) for t, p in zip(targets, prediction)])
-            assert len(targets) == len(prediction)
-            return prediction, targets
-
         out = {
-            split_name: predict_iob(split_name, split_data)
+            split_name: predict_iob(inferencer, split_name, split_data)
             for split_name, split_data in task_data["data_dicts"].items()
         }
 
@@ -231,11 +229,11 @@ if __name__ == "__main__":
 
     num_folds = 1
     data_supplier, splits = build_data_supplier_splits_trainset_only(
-        raw_data_supplier, num_folds, 0.1
+        raw_data_supplier, num_folds, 0.2
     )
 
     start = time()
-    task = FarmSeqTagScoreTask(params=Params(batch_size=2), data_supplier=data_supplier)
+    task = FarmSeqTagScoreTask(params=Params(batch_size=32,n_epochs=4), data_supplier=data_supplier)
     num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
     print(
