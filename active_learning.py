@@ -87,8 +87,8 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
             eval_metrices.append(
                 {"train_size": len(chosen_data), "scores": eval_metrics}
             )
-            job.scores = eval_metrices
-            job.select_fun = job.select_fun.__name__
+        job.scores = eval_metrices
+        job.select_fun = job.select_fun.__name__
         return job.__dict__
 
     @classmethod
