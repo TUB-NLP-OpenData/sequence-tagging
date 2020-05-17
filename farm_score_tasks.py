@@ -65,7 +65,7 @@ NIT = "X"  # non initial token
 
 
 class Params(NamedTuple):
-    batch_size: int
+    batch_size: int=32
     n_epochs: int = 5
 
 
@@ -80,7 +80,7 @@ def build_data_silo(params: Params, splits, processor):
     data_silo._load_data(
         **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
     )
-    return data_silo
+    return data_silo,farm_data
 
 
 def build_model(n_batches, device, n_epochs, task_data):
@@ -130,7 +130,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         cls, splits: Splits, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         params: Params = task_data["params"]
-        data_silo = build_data_silo(params, splits, task_data["processor"])
+        data_silo,farm_data = build_data_silo(params, splits, task_data["processor"])
 
         set_all_seeds(seed=42)
         device, n_gpu = initialize_device_settings(use_cuda=True)
@@ -170,7 +170,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         out = {
             split_name: predict_iob(inferencer, split_name, split_data)
-            for split_name, split_data in task_data["data_dicts"].items()
+            for split_name, split_data in farm_data.items()
         }
 
         return out

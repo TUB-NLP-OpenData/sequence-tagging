@@ -7,6 +7,7 @@ from functools import partial
 from torch import multiprocessing
 
 import flair_score_tasks
+from data_splitting import shufflesplit_trainset_only_trainsize_range
 from experiment_util import Experiment, TRAINONLY
 from farm_ner import FarmSeqTagScoreTask
 from mlutil.crossvalidation import (
@@ -15,14 +16,18 @@ from mlutil.crossvalidation import (
     ScoreTask,
 )  # TODO(tilo) must be imported before numpy
 
-from eval_jobs import shufflesplit_trainset_only_trainsize_range
 import numpy
 from itertools import groupby
 from time import time
 from typing import Dict, List, Tuple, Any, Iterable
 
-from reading_seqtag_data import read_scierc_data, read_JNLPBA_data, TaggedSeqsDataSet, \
-    read_conll03_en
+from reading_seqtag_data import (
+    read_scierc_data,
+    read_JNLPBA_data,
+    TaggedSeqsDataSet,
+    read_conll03_en,
+)
+from spacyCrf_score_task import SpacyCrfScorer
 from util import data_io
 
 
@@ -44,9 +49,7 @@ def tuple_2_dict(t):
     return {"mean": m, "std": s}
 
 
-def calc_write_learning_curve(
-    exp: Experiment,  max_num_workers=40
-):
+def calc_write_learning_curve(exp: Experiment, max_num_workers=40):
     num_workers = min(
         min(max_num_workers, multiprocessing.cpu_count() - 1), exp.num_folds
     )
@@ -99,22 +102,24 @@ if __name__ == "__main__":
     results_folder = home + "/data/seqtag_results/learn_curve_JNLPBA"
     os.makedirs(results_folder, exist_ok=True)
 
-
     dataset: TaggedSeqsDataSet = data_supplier()
 
     num_folds = 3
     splits = shufflesplit_trainset_only_trainsize_range(
         TaggedSeqsDataSet(dataset.train, dataset.dev, dataset.test),
         num_folds=num_folds,
-        train_sizes=[0.2,0.5,0.99],
+        train_sizes=[0.05],
     )
+    import farm_score_tasks
 
     exp = Experiment(
         "farm",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
-        score_task=FarmSeqTagScoreTask(params={}, data_supplier=data_supplier),
+        score_task=FarmSeqTagScoreTask(
+            params=farm_score_tasks.Params(n_epochs=1), data_supplier=data_supplier
+        ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
 
@@ -124,7 +129,7 @@ if __name__ == "__main__":
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03enPooled(
-            params={}, data_supplier=data_supplier
+            params=flair_score_tasks.Params(max_epochs=3), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
@@ -135,20 +140,20 @@ if __name__ == "__main__":
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03en(
-            params={}, data_supplier=data_supplier
+            params=flair_score_tasks.Params(max_epochs=3), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
 
-    import benchmark_spacyCrf_tagger as spacy_crf
+    import spacy_features_sklearn_crfsuite as spacy_crf
 
     exp = Experiment(
         "spacy-crf",
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
-        score_task=spacy_crf.SpacyCrfScorer(
-            params={"c1": 0.5, "c2": 0.0}, data_supplier=data_supplier
+        score_task=SpacyCrfScorer(
+            params=spacy_crf.Params(max_it=3), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=40)
