@@ -51,24 +51,6 @@ from json import encoder
 encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
 
-def build_kwargs(data_supplier, params):
-    dataset: TaggedSeqsDataSet = data_supplier()
-    data = dataset.train + dataset.dev + dataset.test
-
-    return {
-        "params": params,
-        "data": data,
-    }
-
-
-def build_task_data_maintaining_splits(params, data_supplier):
-    data: TaggedSeqsDataSet = data_supplier()
-    return {
-        "data": data._asdict(),
-        "params": params,
-    }
-
-
 if __name__ == "__main__":
     import os
 
