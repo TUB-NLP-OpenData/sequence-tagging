@@ -210,6 +210,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         )
 
         task_data = {
+            "num_labels":len(ner_labels),
             "lang_model": lang_model,
             "ml_logger": ml_logger,
             "processor": processor,
