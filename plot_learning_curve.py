@@ -11,7 +11,7 @@ def plot_learncurve(paths, split_name, save_dir="images"):
         return path.split("/")[-1]
 
     methods = [build_method_name(f) for f in paths]
-    fig, ax = plt.subplots(figsize=(5, 10))
+    fig, ax = plt.subplots(figsize=(5, 15))
     sns.set(style="ticks", palette="pastel")
     data = [
         {
@@ -32,7 +32,6 @@ def plot_learncurve(paths, split_name, save_dir="images"):
         x="train_size",
         y="f1-micro-spanlevel",
         hue="method",
-        palette=["m", "g", "r"],
         data=df,
     )
     # sns.despine(offset=10, trim=True)
@@ -40,6 +39,7 @@ def plot_learncurve(paths, split_name, save_dir="images"):
         "evaluated on %s-set with %d-fold-crossval" % (split_name, num_cross_val)
     )
     ax.set_xlabel("subset of train-dataset in %")
+    plt.tight_layout()
     ax.figure.savefig(
         save_dir + "/learning_curve_%s_%s.png" % (split_name, "-".join(methods))
     )
