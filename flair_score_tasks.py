@@ -60,18 +60,11 @@ class FlairScoreTask(SeqTagScoreTask):
 
         dataset = data_supplier()
 
-        def train_dev_test_sentences_builder(splits):
-            return {
-                split_name: build_flair_sentences_from_sequences(data_split)
-                for split_name, data_split in splits.items()
-            }
-
         task_data = {
             "params": params,
             "tag_dictionary": build_tag_dict(
                 [seq for seqs in dataset.values() for seq in seqs], TAG_TYPE
             ),
-            "train_dev_test_sentences_builder": train_dev_test_sentences_builder,
         }
 
         return SeqTagTaskData(data=dataset, task_data=task_data)
@@ -81,7 +74,10 @@ class FlairScoreTask(SeqTagScoreTask):
 
         # torch.cuda.empty_cache()
 
-        splits = task_data["train_dev_test_sentences_builder"](raw_splits)
+        splits = {
+            split_name: build_flair_sentences_from_sequences(data_split)
+            for split_name, data_split in raw_splits.items()
+        }
 
         corpus = Corpus(train=splits["train"], dev=splits["dev"], test=splits["test"])
 
