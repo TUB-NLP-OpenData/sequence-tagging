@@ -66,7 +66,7 @@ NIT = "X"  # non initial token
 
 class Params(NamedTuple):
     batch_size: int
-    n_epochs:int = 5
+    n_epochs: int = 5
 
 
 def build_data_silo(params: Params, splits, processor):
@@ -211,11 +211,9 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         task_data = {
             "lang_model": lang_model,
-            "num_labels": len(ner_labels),
             "ml_logger": ml_logger,
             "processor": processor,
             "params": params,
-            "ner_labels": ner_labels,
         }
         return SeqTagTaskData(data=dataset_dict, task_data=task_data)
 
@@ -233,7 +231,9 @@ if __name__ == "__main__":
     )
 
     start = time()
-    task = FarmSeqTagScoreTask(params=Params(batch_size=32,n_epochs=4), data_supplier=data_supplier)
+    task = FarmSeqTagScoreTask(
+        params=Params(batch_size=32, n_epochs=4), data_supplier=data_supplier
+    )
     num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
     m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
     print(
