@@ -25,7 +25,7 @@ class Experiment:
 
 class SeqTagTaskData(NamedTuple):
     data: Dict[str, List]
-    params: Any
+    task_data: Any
 
 
 class SeqTagScoreTask(GenericTask):
@@ -41,7 +41,7 @@ class SeqTagScoreTask(GenericTask):
     @classmethod
     def process(cls, job: EvalJob, task_data: SeqTagTaskData):
         splits = split_splits(job, task_data.data)
-        predictions = cls.predict_with_targets(splits, task_data.params)
+        predictions = cls.predict_with_targets(splits, task_data.task_data)
         return {
             split_name: calc_seqtag_f1_scores(preds, targets)
             for split_name, (preds, targets) in predictions.items()
