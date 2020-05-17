@@ -9,7 +9,6 @@ from torch import multiprocessing
 import flair_score_tasks
 from data_splitting import shufflesplit_trainset_only_trainsize_range
 from experiment_util import Experiment, TRAINONLY
-from farm_ner import FarmSeqTagScoreTask
 from mlutil.crossvalidation import (
     calc_scores,
     calc_mean_and_std,
@@ -93,7 +92,10 @@ if __name__ == "__main__":
     #     process_fun=char_to_token_level,
     # )
     data_path = os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
-    data_supplier = partial(read_JNLPBA_data, path=data_path)
+
+    def data_supplier():
+        data = read_JNLPBA_data(data_path)
+        return data._asdict()
 
     # data_supplier = partial(
     #     read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
@@ -102,13 +104,11 @@ if __name__ == "__main__":
     results_folder = home + "/data/seqtag_results/learn_curve_JNLPBA"
     os.makedirs(results_folder, exist_ok=True)
 
-    dataset: TaggedSeqsDataSet = data_supplier()
+    dataset = data_supplier()
 
     num_folds = 3
     splits = shufflesplit_trainset_only_trainsize_range(
-        TaggedSeqsDataSet(dataset.train, dataset.dev, dataset.test),
-        num_folds=num_folds,
-        train_sizes=[0.05],
+        TaggedSeqsDataSet(**dataset), num_folds=num_folds, train_sizes=[0.05],
     )
     import farm_score_tasks
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
-        score_task=FarmSeqTagScoreTask(
+        score_task=farm_score_tasks.FarmSeqTagScoreTask(
             params=farm_score_tasks.Params(n_epochs=1), data_supplier=data_supplier
         ),
     )
