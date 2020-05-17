@@ -1,44 +1,38 @@
 """
 based on : FARM/examples/ner.py
 """
-from pprint import pprint
-
-from time import time
-
-from functools import partial
-
-from typing import List, Dict, Any, Tuple
-
 import logging
 import os
-from pathlib import Path
-
 from farm.data_handler.data_silo import DataSilo
 from farm.data_handler.processor import NERProcessor
-from farm.modeling.optimization import initialize_optimizer
 from farm.infer import Inferencer
 from farm.modeling.adaptive_model import AdaptiveModel
 from farm.modeling.language_model import LanguageModel
+from farm.modeling.optimization import initialize_optimizer
 from farm.modeling.prediction_head import TokenClassificationHead
 from farm.modeling.tokenization import Tokenizer
 from farm.train import Trainer
 from farm.utils import set_all_seeds, MLFlowLogger, initialize_device_settings
+from functools import partial
+from pprint import pprint
+from time import time
+from typing import List, Dict, Any, Tuple
 
-from eval_jobs import EvalJob, shufflesplit_trainset_only
+from eval_jobs import EvalJob, preserve_train_dev_test
 from experiment_util import SeqTagScoreTask
 from mlutil.crossvalidation import calc_mean_std_scores
-from reading_seqtag_data import TaggedSequence, read_JNLPBA_data, TaggedSeqsDataSet
-from seq_tag_util import Sequences, BIO, bilou2bio
-from util import data_io
+from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet, \
+    read_conll03_en
+from seq_tag_util import Sequences, bilou2bio
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
     level=logging.WARNING,
 )
-logging.disable(logging.CRITICAL)
-logger = logging.getLogger() #TODO(tilo): this is still not working!
-logger.setLevel(logging.WARNING)
+# logging.disable(logging.CRITICAL)
+# logger = logging.getLogger() #TODO(tilo): this is still not working!
+# logger.setLevel(logging.WARNING)
 
 
 class TokenClassificationHeadPredictSequence(TokenClassificationHead):
@@ -78,7 +72,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         device, n_gpu = task_data["device"], task_data["n_gpu"]
 
-        n_epochs = 1
+        n_epochs = 5
         evaluate_every = 400
 
         language_model = LanguageModel.load(task_data["lang_model"])
@@ -227,12 +221,20 @@ if __name__ == "__main__":
     encoder.FLOAT_REPR = lambda o: format(o, ".2f")
 
     data_supplier = partial(
-        read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+        read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
     )
     dataset = data_supplier()
     num_folds = 1
 
-    splits = shufflesplit_trainset_only(dataset, num_folds)
+    splits = preserve_train_dev_test(dataset, num_folds)
+
+    # data_supplier = partial(
+    #     read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+    # )
+    # dataset = data_supplier()
+    # num_folds = 1
+    #
+    # splits = shufflesplit_trainset_only(dataset, num_folds)
     n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
 
     exp_name = "farm-ner"
