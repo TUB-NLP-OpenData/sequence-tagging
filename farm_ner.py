@@ -16,13 +16,14 @@ from farm.utils import set_all_seeds, MLFlowLogger, initialize_device_settings
 from functools import partial
 from pprint import pprint
 from time import time
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, NamedTuple
 
 from eval_jobs import EvalJob, preserve_train_dev_test
-from experiment_util import SeqTagScoreTask
+
+from data_splitting import build_data_supplier_splits_trainset_only
+from experiment_util import SeqTagScoreTask, SeqTagTaskData
 from mlutil.crossvalidation import calc_mean_std_scores
-from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet, \
-    read_conll03_en
+from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet, read_conll03_en
 from seq_tag_util import Sequences, bilou2bio
 
 logging.basicConfig(
@@ -65,12 +66,30 @@ def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
 NIT = "X"  # non initial token
 
 
+class Params(NamedTuple):
+    batch_size: int
+
+
 class FarmSeqTagScoreTask(SeqTagScoreTask):
     @classmethod
     def predict_with_targets(
         cls, job: EvalJob, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
-        device, n_gpu = task_data["device"], task_data["n_gpu"]
+        params: Params = task_data["params"]
+        data_silo = DataSilo(
+            processor=task_data["processor"],
+            batch_size=params.batch_size,
+            automatic_loading=False,
+            max_processes=4,
+        )
+
+        farm_data = build_farm_data_dicts(dataset)
+        data_silo._load_data(
+            **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
+        )
+
+        set_all_seeds(seed=42)
+        device, n_gpu = initialize_device_settings(use_cuda=True)
 
         n_epochs = 5
         evaluate_every = 400
@@ -123,7 +142,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             gpu=True,
         )
 
-        def predict_iob(sn,dicts):
+        def predict_iob(sn, dicts):
             batches = inferencer.inference_from_dicts(dicts=dicts)
             prediction = [
                 bilou2bio([t if t != NIT else "O" for t in seq])
@@ -136,7 +155,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             ]
             print(
                 "WARNING: %s got %d invalid predictions"
-                % (sn,len(targets) - len(pred_target))
+                % (sn, len(targets) - len(pred_target))
             )
             prediction, targets = [list(x) for x in zip(*pred_target)]
 
@@ -145,16 +164,15 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             return prediction, targets
 
         out = {
-            split_name: predict_iob(split_name,split_data)
+            split_name: predict_iob(split_name, split_data)
             for split_name, split_data in task_data["data_dicts"].items()
         }
 
         return out
 
     @staticmethod
-    def build_task_data(params, data_supplier) -> Dict[str, Any]:
-        dataset: TaggedSeqsDataSet = data_supplier()
-        dataset_dict: Dict[str, List[TaggedSequence]] = dataset._asdict()
+    def build_task_data(params: Params, data_supplier) -> SeqTagTaskData:
+        dataset_dict: Dict[str, List[TaggedSequence]] = data_supplier()
         ner_labels = ["[PAD]", NIT] + list(
             set(
                 tag
@@ -173,7 +191,6 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
 
         lang_model = "bert-base-cased"
         do_lower_case = False
-        batch_size = 32
 
         tokenizer = Tokenizer.load(
             pretrained_model_name_or_path=lang_model, do_lower_case=do_lower_case
@@ -187,69 +204,35 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             label_list=ner_labels,
         )
 
-        data_silo = DataSilo(
-            processor=processor,
-            batch_size=batch_size,
-            automatic_loading=False,
-            max_processes=4,
-        )
-
-        farm_data = build_farm_data_dicts(dataset)
-        data_silo._load_data(
-            **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
-        )
-
-        set_all_seeds(seed=42)
-        device, n_gpu = initialize_device_settings(use_cuda=True)
-        return {
-            "device": device,
-            "n_gpu": n_gpu,
+        task_data = {
             "lang_model": lang_model,
             "num_labels": len(ner_labels),
             "ml_logger": ml_logger,
-            "data_dicts": farm_data,
-            "data_silo": data_silo,
             "processor": processor,
             "params": params,
             "ner_labels": ner_labels,
         }
+        return SeqTagTaskData(data=dataset_dict, task_data=task_data)
 
 
 if __name__ == "__main__":
-    from json import encoder
+    import os
 
-    encoder.FLOAT_REPR = lambda o: format(o, ".2f")
-
-    data_supplier = partial(
+    raw_data_supplier = partial(
         read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
     )
-    dataset = data_supplier()
+
     num_folds = 1
-
-    splits = preserve_train_dev_test(dataset, num_folds)
-
-    # data_supplier = partial(
-    #     read_JNLPBA_data, path=os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
-    # )
-    # dataset = data_supplier()
-    # num_folds = 1
-    #
-    # splits = shufflesplit_trainset_only(dataset, num_folds)
-    n_jobs = 0  # min(5, num_folds)# needs to be zero if using Transformers
-
-    exp_name = "farm-ner"
-    task = FarmSeqTagScoreTask(params={"bla": 1}, data_supplier=data_supplier)
-    start = time()
-    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=n_jobs)
-    duration = time() - start
-    print(
-        "farm-tagger %d folds with %d jobs in PARALLEL took: %0.2f seconds"
-        % (num_folds, n_jobs, duration)
+    data_supplier, splits = build_data_supplier_splits_trainset_only(
+        raw_data_supplier, num_folds, 0.1
     )
-    exp_results = {
-        "scores": m_scores_std_scores,
-        "overall-time": duration,
-        "num-folds": num_folds,
-    }
-    pprint(exp_results)
-    # data_io.write_json("%s.json" % exp_name, exp_results)
+
+    start = time()
+    task = FarmSeqTagScoreTask(params=Params(batch_size=2), data_supplier=data_supplier)
+    num_workers = 0  # min(multiprocessing.cpu_count() - 1, num_folds)
+    m_scores_std_scores = calc_mean_std_scores(task, splits, n_jobs=num_workers)
+    print(
+        " %d folds %d workers took: %0.2f seconds"
+        % (num_folds, num_workers, time() - start)
+    )
+    pprint(m_scores_std_scores)
