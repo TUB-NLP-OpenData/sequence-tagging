@@ -69,7 +69,7 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
         idx = np.random.randint(0, high=train_data_len, size=(step))
         eval_metrices = []
         chosen_data = []
-        for al_step in range(3):
+        for al_step in range(5):
 
             chosen_data += [data[i] for i in idx]
             data = [d for k, d in enumerate(data) if k not in idx]
@@ -117,8 +117,9 @@ if __name__ == "__main__":
     task = ActiveLearnSpacyCrfSeqTagScoreTask(
         params=Params(c1=0.5, c2=0.0, max_it=100), data_supplier=data_supplier
     )
+    num_folds = 5
     select_funs = [select_by_max_entropy, select_random]
-    jobs = [Job(f) for _ in range(3) for f in select_funs]
+    jobs = [Job(f) for _ in range(num_folds) for f in select_funs]
     num_workers = min(multiprocessing.cpu_count() - 1, len(jobs))
     start = time()
     scores = calc_scores(task, jobs, num_workers)
@@ -128,4 +129,3 @@ if __name__ == "__main__":
         % (len(jobs), num_workers, duration)
     )
     data_io.write_jsonl("scores.jsonl", scores)
-    pprint(scores)

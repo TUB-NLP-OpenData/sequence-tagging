@@ -1,6 +1,3 @@
-from itertools import groupby
-
-from pprint import pprint
 from matplotlib import pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -27,7 +24,6 @@ def plot_it(experiments, save_dir="."):
         x="train_size",
         y="f1-micro-spanlevel",
         hue="select_fun",
-        palette="dark",
         data=df,
     )
     ax.figure.savefig(save_dir + "/active_learning_curve.png")
