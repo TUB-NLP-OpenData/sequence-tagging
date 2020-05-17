@@ -68,23 +68,49 @@ class Params(NamedTuple):
     batch_size: int
 
 
+def build_data_silo(params: Params, splits, processor):
+    data_silo = DataSilo(
+        processor=processor,
+        batch_size=params.batch_size,
+        automatic_loading=False,
+        max_processes=4,
+    )
+    farm_data = build_farm_data_dicts(splits)
+    data_silo._load_data(
+        **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
+    )
+    return data_silo
+
+
+def build_model(n_batches, device, n_epochs, task_data):
+    language_model = LanguageModel.load(task_data["lang_model"])
+    prediction_head = TokenClassificationHeadPredictSequence(
+        num_labels=task_data["num_labels"]
+    )
+    model = AdaptiveModel(
+        language_model=language_model,
+        prediction_heads=[prediction_head],
+        embeds_dropout_prob=0.1,
+        lm_output_types=["per_token"],
+        device=device,
+    )
+    model, optimizer, lr_schedule = initialize_optimizer(
+        model=model,
+        learning_rate=1e-5,
+        n_batches=n_batches,
+        n_epochs=n_epochs,
+        device=device,
+    )
+    return lr_schedule, model, optimizer
+
+
 class FarmSeqTagScoreTask(SeqTagScoreTask):
     @classmethod
     def predict_with_targets(
         cls, splits: Splits, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         params: Params = task_data["params"]
-        data_silo = DataSilo(
-            processor=task_data["processor"],
-            batch_size=params.batch_size,
-            automatic_loading=False,
-            max_processes=4,
-        )
-
-        farm_data = build_farm_data_dicts(splits)
-        data_silo._load_data(
-            **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
-        )
+        data_silo = build_data_silo(params, splits, task_data["processor"])
 
         set_all_seeds(seed=42)
         device, n_gpu = initialize_device_settings(use_cuda=True)
@@ -92,31 +118,14 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
         n_epochs = 5
         evaluate_every = 400
 
-        language_model = LanguageModel.load(task_data["lang_model"])
-        prediction_head = TokenClassificationHeadPredictSequence(
-            num_labels=task_data["num_labels"]
-        )
-
-        model = AdaptiveModel(
-            language_model=language_model,
-            prediction_heads=[prediction_head],
-            embeds_dropout_prob=0.1,
-            lm_output_types=["per_token"],
-            device=device,
-        )
-
-        model, optimizer, lr_schedule = initialize_optimizer(
-            model=model,
-            learning_rate=1e-5,
-            n_batches=len(task_data["data_silo"].loaders["train"]),
-            n_epochs=n_epochs,
-            device=device,
+        lr_schedule, model, optimizer = build_model(
+            len(data_silo.loaders["train"]), device, n_epochs, task_data
         )
 
         trainer = Trainer(
             model=model,
             optimizer=optimizer,
-            data_silo=task_data["data_silo"],
+            data_silo=data_silo,
             epochs=n_epochs,
             n_gpu=n_gpu,
             lr_schedule=lr_schedule,
