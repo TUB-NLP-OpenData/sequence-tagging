@@ -41,6 +41,7 @@ def shufflesplit_trainset_only_trainsize_range(
     ]
     return splits
 
+
 def build_data_supplier_splits_trainset_only(
     raw_data_supplier, num_folds, train_size=0.1
 ):
@@ -65,6 +66,7 @@ def build_data_supplier_splits_concat(raw_data_supplier, num_folds, test_size=0.
     )
     return data_supplier, splits
 
+
 def split_splits(split: Dict[str, List[int]], data_splits: Dict[str, List]):
     return {
         split_name: [data_splits[split_name][i] for i in indizes]
@@ -78,7 +80,7 @@ def build_train_sizes(starts, ends, steps):
 
 
 def crosseval_on_concat_dataset(
-    data:List, num_folds: int = 5, test_size=0.2
+    data: List, num_folds: int = 5, test_size=0.2
 ) -> List[EvalJob]:
     splitter = ShuffleSplit(n_splits=num_folds, test_size=test_size, random_state=111)
     splits = [
@@ -119,7 +121,9 @@ def crosseval_on_concat_dataset_trainsize_range(
     return splits
 
 
-def preserve_train_dev_test(dataset: TaggedSeqsDataSet, num_folds: int = 5) -> List[EvalJob]:
+def preserve_train_dev_test(
+    dataset: TaggedSeqsDataSet, num_folds: int = 5
+) -> List[EvalJob]:
     splits = [
         {
             dsname: list(range(len(getattr(dataset, dsname))))

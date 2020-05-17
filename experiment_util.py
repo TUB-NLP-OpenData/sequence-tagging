@@ -3,10 +3,7 @@ from dataclasses import dataclass
 
 from typing import List, Any, Callable, Dict, Tuple, NamedTuple, Union
 
-from eval_jobs import EvalJob, LearnCurveJob
-
-from data_splitting import split_splits
-from reading_seqtag_data import TaggedSequence
+from data_splitting import split_splits, LearnCurveJob, EvalJob
 from seq_tag_util import calc_seqtag_f1_scores, Sequences
 from util.worker_pool import GenericTask
 
@@ -56,6 +53,3 @@ class SeqTagScoreTask(GenericTask):
         cls, splits, params
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         raise NotImplementedError
-
-
-
