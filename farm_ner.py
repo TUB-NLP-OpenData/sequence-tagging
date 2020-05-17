@@ -18,10 +18,8 @@ from pprint import pprint
 from time import time
 from typing import List, Dict, Any, Tuple, NamedTuple
 
-from eval_jobs import EvalJob, preserve_train_dev_test
-
-from data_splitting import build_data_supplier_splits_trainset_only
-from experiment_util import SeqTagScoreTask, SeqTagTaskData
+from data_splitting import build_data_supplier_splits_trainset_only, EvalJob
+from experiment_util import SeqTagScoreTask, SeqTagTaskData, Splits
 from mlutil.crossvalidation import calc_mean_std_scores
 from reading_seqtag_data import TaggedSequence, TaggedSeqsDataSet, read_conll03_en
 from seq_tag_util import Sequences, bilou2bio
@@ -56,10 +54,10 @@ def build_farm_data(data: List[TaggedSequence]):
     return [_build_dict(datum) for datum in data]
 
 
-def build_farm_data_dicts(dataset: TaggedSeqsDataSet):
+def build_farm_data_dicts(dataset):
     return {
         split_name: build_farm_data(split_data)
-        for split_name, split_data in dataset._asdict().items()
+        for split_name, split_data in dataset.items()
     }
 
 
@@ -73,7 +71,7 @@ class Params(NamedTuple):
 class FarmSeqTagScoreTask(SeqTagScoreTask):
     @classmethod
     def predict_with_targets(
-        cls, job: EvalJob, task_data: Dict[str, Any]
+        cls, splits: Splits, task_data: Dict[str, Any]
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         params: Params = task_data["params"]
         data_silo = DataSilo(
@@ -83,7 +81,7 @@ class FarmSeqTagScoreTask(SeqTagScoreTask):
             max_processes=4,
         )
 
-        farm_data = build_farm_data_dicts(dataset)
+        farm_data = build_farm_data_dicts(splits)
         data_silo._load_data(
             **{"%s_dicts" % split_name: d for split_name, d in farm_data.items()}
         )

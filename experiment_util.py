@@ -22,6 +22,7 @@ class Experiment:
     def __str__(self):
         return str({k: v for k, v in self.__dict__.items() if k not in ["jobs"]})
 
+Splits = Dict[str, List[int]]
 
 class SeqTagTaskData(NamedTuple):
     data: Dict[str, List]
@@ -50,6 +51,6 @@ class SeqTagScoreTask(GenericTask):
     @classmethod
     @abstractmethod
     def predict_with_targets(
-        cls, splits, params
+        cls, splits:Splits, params
     ) -> Dict[str, Tuple[Sequences, Sequences]]:
         raise NotImplementedError
