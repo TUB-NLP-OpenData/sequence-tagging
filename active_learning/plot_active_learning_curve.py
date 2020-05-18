@@ -7,7 +7,7 @@ from util import data_io
 
 
 def plot_it(experiments, save_dir="."):
-    fig, ax = plt.subplots(figsize=(5, 25))
+    fig, ax = plt.subplots(figsize=(6, 12))
     sns.set(style="ticks", palette="pastel")
     data = [
         {
@@ -20,12 +20,16 @@ def plot_it(experiments, save_dir="."):
     ]
     df = pd.DataFrame(data=data)
     ax = sns.boxplot(
-        ax=ax,
-        x="train_size",
-        y="f1-micro-spanlevel",
-        hue="select_fun",
-        data=df,
+        ax=ax, x="train_size", y="f1-micro-spanlevel", hue="select_fun", data=df,
     )
+
+    df1 = df[df.train_size == df.train_size[0]]
+    num_cross_val = len(
+        df1[df1.select_fun == df1.select_fun[0]]
+    )  # well I rarely use pandas!
+
+    ax.set_title("conll03-en %s-set scores with %d-fold-crossval" % ("test", num_cross_val))
+
     ax.figure.savefig(save_dir + "/active_learning_curve.png")
 
     plt.close()
@@ -33,9 +37,5 @@ def plot_it(experiments, save_dir="."):
 
 if __name__ == "__main__":
 
-    HOME = os.environ["HOME"]
-
-    # keyfun = lambda x:x['select_fun']
-    # data = [(k,[v for v in g]) for k,g in groupby(sorted(s,key=keyfun),key=keyfun)]
-    data = data_io.read_jsonl(HOME + "/gunther/sequence-tagging/scores.jsonl")
-    plot_it(data)
+    data = data_io.read_jsonl("active_learning/results/conll03_en/scores.jsonl")
+    plot_it(data,save_dir='active_learning/results/conll03_en')

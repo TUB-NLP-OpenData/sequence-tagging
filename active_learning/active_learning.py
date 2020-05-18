@@ -69,7 +69,7 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
         idx = np.random.randint(0, high=train_data_len, size=(step))
         eval_metrices = []
         chosen_data = []
-        for al_step in range(9):
+        for al_step in range(10):
 
             chosen_data += [data[i] for i in idx]
             data = [d for k, d in enumerate(data) if k not in idx]
