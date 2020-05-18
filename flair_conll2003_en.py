@@ -57,7 +57,7 @@ def build_and_train_conll03en_flair_sequence_tagger(corpus,tag_type,tag_dictiona
     trainer: ModelTrainer = ModelTrainer(tagger, corpus)
 
     # trainer.train("resources/taggers/example-ner", train_with_dev=True, max_epochs=150) # original
-    trainer.train("resources/taggers/example-ner", train_with_dev=False, max_epochs=40,save_final_model=False) # original
+    trainer.train("flair_checkpoints", train_with_dev=False, max_epochs=40,save_final_model=False) # original
 
     return tagger
 

@@ -83,6 +83,11 @@ def calc_write_learning_curve(exp: Experiment, max_num_workers=40):
         results_path + "/learning_curve_meanstd.json", trainsize_to_mean_std_scores,
     )
 
+data_path = os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
+
+def data_supplier():
+    data = read_JNLPBA_data(data_path)
+    return data._asdict()
 
 if __name__ == "__main__":
     # data_supplier= partial(read_scierc_data,path=home + "/data/scierc_data/sciERC_processed/processed_data/json")
@@ -91,11 +96,6 @@ if __name__ == "__main__":
     #     jsonl_file=home + "/data/scierc_data/final_data.json",
     #     process_fun=char_to_token_level,
     # )
-    data_path = os.environ["HOME"] + "/scibert/data/ner/JNLPBA"
-
-    def data_supplier():
-        data = read_JNLPBA_data(data_path)
-        return data._asdict()
 
     # data_supplier = partial(
     #     read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
@@ -108,20 +108,20 @@ if __name__ == "__main__":
 
     num_folds = 3
     splits = shufflesplit_trainset_only_trainsize_range(
-        TaggedSeqsDataSet(**dataset), num_folds=num_folds, train_sizes=[0.05],
+        TaggedSeqsDataSet(**dataset), num_folds=num_folds, train_sizes=[0.2,0.5,0.99],
     )
     import farm_score_tasks
 
-    exp = Experiment(
-        "farm",
-        TRAINONLY,
-        num_folds=num_folds,
-        jobs=splits,
-        score_task=farm_score_tasks.FarmSeqTagScoreTask(
-            params=farm_score_tasks.Params(n_epochs=1), data_supplier=data_supplier
-        ),
-    )
-    calc_write_learning_curve(exp, max_num_workers=0)
+    # exp = Experiment(
+    #     "farm",
+    #     TRAINONLY,
+    #     num_folds=num_folds,
+    #     jobs=splits,
+    #     score_task=farm_score_tasks.FarmSeqTagScoreTask(
+    #         params=farm_score_tasks.Params(n_epochs=3), data_supplier=data_supplier
+    #     ),
+    # )
+    # calc_write_learning_curve(exp, max_num_workers=0)
 
     exp = Experiment(
         "flair-pooled",
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03enPooled(
-            params=flair_score_tasks.Params(max_epochs=3), data_supplier=data_supplier
+            params=flair_score_tasks.Params(max_epochs=40), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03en(
-            params=flair_score_tasks.Params(max_epochs=3), data_supplier=data_supplier
+            params=flair_score_tasks.Params(max_epochs=40), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=0)
