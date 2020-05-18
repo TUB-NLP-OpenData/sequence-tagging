@@ -174,7 +174,9 @@ class BiLSTMConll03enPooled(FlairScoreTask):
 
 class BiLSTMConll03en(FlairScoreTask):
     @staticmethod
-    def build_train_sequence_tagger(corpus, tag_dictionary, params, TAG_TYPE="ner"):
+    def build_train_sequence_tagger(
+        corpus, tag_dictionary, params: Params, TAG_TYPE="ner"
+    ):
         embeddings: StackedEmbeddings = StackedEmbeddings(
             embeddings=[
                 WordEmbeddings("glove"),
@@ -197,9 +199,9 @@ class BiLSTMConll03en(FlairScoreTask):
         trainer: ModelTrainer = ModelTrainer(tagger, corpus)
 
         trainer.train(
-            "resources/taggers/example-ner",
+            "flair_checkpoints",
             train_with_dev=False,
-            max_epochs=40,
+            max_epochs=params.max_epochs,
             save_final_model=False,
         )  # original
 
