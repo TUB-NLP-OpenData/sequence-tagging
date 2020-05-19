@@ -9,5 +9,5 @@
 ![0.01 steps](results/conll03_en_1percent/active_learning_curve.png)
 
 ## result
-* entropy/uncertainty -based sampling seems not beneficial if model if dump (too few traindata or too shallow?)
+* entropy/uncertainty -based sampling seems not beneficial if model is dumb (too few traindata or too shallow?)
 
