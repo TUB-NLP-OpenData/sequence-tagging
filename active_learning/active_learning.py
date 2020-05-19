@@ -65,7 +65,7 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
     def process(cls, job: Job, task_data: AlTaskData):
         data = task_data.data.train
         train_data_len = len(data)
-        step = round(0.1 * train_data_len)
+        step = round(0.01 * train_data_len)
         idx = np.random.randint(0, high=train_data_len, size=(step))
         eval_metrices = []
         chosen_data = []

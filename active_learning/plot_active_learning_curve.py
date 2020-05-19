@@ -24,11 +24,11 @@ def plot_it(experiments, save_dir="."):
     )
 
     df1 = df[df.train_size == df.train_size[0]]
-    num_cross_val = len(
+    num_runs = len(
         df1[df1.select_fun == df1.select_fun[0]]
     )  # well I rarely use pandas!
 
-    ax.set_title("conll03-en %s-set scores with %d-fold-crossval" % ("test", num_cross_val))
+    ax.set_title("conll03-en %s-set scores;  %d runs" % ("test", num_runs))
 
     ax.figure.savefig(save_dir + "/active_learning_curve.png")
 
@@ -36,6 +36,6 @@ def plot_it(experiments, save_dir="."):
 
 
 if __name__ == "__main__":
-
-    data = data_io.read_jsonl("active_learning/results/conll03_en/scores.jsonl")
-    plot_it(data,save_dir='active_learning/results/conll03_en')
+    folder = "conll03_en_1percent"
+    data = data_io.read_jsonl("active_learning/results/%s/scores.jsonl"%folder)
+    plot_it(data,save_dir='active_learning/results/%s'%folder)
