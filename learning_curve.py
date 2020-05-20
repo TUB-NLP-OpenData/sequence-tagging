@@ -101,27 +101,27 @@ if __name__ == "__main__":
     #     read_conll03_en, path=os.environ["HOME"] + "/data/IE/seqtag_data"
     # )
 
-    results_folder = home + "/data/seqtag_results/learn_curve_JNLPBA"
+    results_folder = home + "/data/seqtag_results/JNLPBA_20percent"
     os.makedirs(results_folder, exist_ok=True)
 
     dataset = data_supplier()
 
     num_folds = 3
     splits = shufflesplit_trainset_only_trainsize_range(
-        TaggedSeqsDataSet(**dataset), num_folds=num_folds, train_sizes=[0.2,0.5,0.99],
+        TaggedSeqsDataSet(**dataset), num_folds=num_folds, train_sizes=[0.2],
     )
     import farm_score_tasks
 
-    # exp = Experiment(
-    #     "farm",
-    #     TRAINONLY,
-    #     num_folds=num_folds,
-    #     jobs=splits,
-    #     score_task=farm_score_tasks.FarmSeqTagScoreTask(
-    #         params=farm_score_tasks.Params(n_epochs=3), data_supplier=data_supplier
-    #     ),
-    # )
-    # calc_write_learning_curve(exp, max_num_workers=0)
+    exp = Experiment(
+        "farm",
+        TRAINONLY,
+        num_folds=num_folds,
+        jobs=splits,
+        score_task=farm_score_tasks.FarmSeqTagScoreTask(
+            params=farm_score_tasks.Params(n_epochs=9), data_supplier=data_supplier
+        ),
+    )
+    calc_write_learning_curve(exp, max_num_workers=0)
 
     exp = Experiment(
         "flair-pooled",
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         num_folds=num_folds,
         jobs=splits,
         score_task=SpacyCrfScorer(
-            params=spacy_crf.Params(max_it=3), data_supplier=data_supplier
+            params=spacy_crf.Params(max_it=100), data_supplier=data_supplier
         ),
     )
     calc_write_learning_curve(exp, max_num_workers=40)
