@@ -8,7 +8,7 @@ from torch import multiprocessing
 
 import flair_score_tasks
 from data_splitting import shufflesplit_trainset_only_trainsize_range
-from experiment_util import Experiment, TRAINONLY
+from experiment_util import Experiment
 from mlutil.crossvalidation import (
     calc_scores,
     calc_mean_and_std,
@@ -114,7 +114,6 @@ if __name__ == "__main__":
 
     exp = Experiment(
         "farm",
-        TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
         score_task=farm_score_tasks.FarmSeqTagScoreTask(
@@ -125,7 +124,6 @@ if __name__ == "__main__":
 
     exp = Experiment(
         "flair-pooled",
-        TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03enPooled(
@@ -136,7 +134,6 @@ if __name__ == "__main__":
 
     exp = Experiment(
         "flair",
-        TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
         score_task=flair_score_tasks.BiLSTMConll03en(
@@ -149,7 +146,6 @@ if __name__ == "__main__":
 
     exp = Experiment(
         "spacy-crf",
-        TRAINONLY,
         num_folds=num_folds,
         jobs=splits,
         score_task=SpacyCrfScorer(

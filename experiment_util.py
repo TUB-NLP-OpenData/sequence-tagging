@@ -7,14 +7,10 @@ from data_splitting import split_splits, LearnCurveJob, EvalJob
 from seq_tag_util import calc_seqtag_f1_scores, Sequences
 from util.worker_pool import GenericTask
 
-CROSSVALIDATION = "crossvalidation"
-TRAINONLY = "trainonly"
-
 
 @dataclass
 class Experiment:
     name: str
-    mode: str
     num_folds: int
     jobs: List[LearnCurveJob]
     score_task: GenericTask
