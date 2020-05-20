@@ -1,0 +1,1 @@
+{"duration": 7819.550859451294, "num-workers": 0, "experiment": "{'name': 'flair-pooled', 'mode': 'trainonly', 'num_folds': 3, 'score_task': <flair_score_tasks.BiLSTMConll03enPooled object at 0x7f2706830c10>}"}

@@ -11,11 +11,11 @@ def plot_learncurve(paths, split_name, save_dir="images"):
         return path.split("/")[-1]
 
     methods = [build_method_name(f) for f in paths]
-    fig, ax = plt.subplots(figsize=(5, 15))
+    fig, ax = plt.subplots(figsize=(5, 10))
     sns.set(style="ticks", palette="pastel")
     data = [
         {
-            "train_size": round(float(train_size), 2),
+            "train_size": 100*round(float(train_size), 2),
             "f1-micro-spanlevel": score[split_name]["f1-micro-spanlevel"],
             "method": build_method_name(path),
         }
@@ -50,12 +50,13 @@ def plot_learncurve(paths, split_name, save_dir="images"):
 if __name__ == "__main__":
 
     home = os.environ["HOME"]
-    data_path = home + "/hpc/data/seqtag_results"
+    # data_path = home + "/hpc/data/seqtag_results/JNLPBA_20percent"
+    data_path = "results/JNLPBA_20percent"
     result_paths = [
         data_path + "/" + p
         for p in os.listdir(data_path)
         if os.path.isdir(data_path + "/" + p)
     ]
 
-    plot_learncurve(result_paths, "train", save_dir=".")
-    plot_learncurve(result_paths, "test", save_dir=".")
+    plot_learncurve(result_paths, "train", save_dir=data_path)
+    plot_learncurve(result_paths, "test", save_dir=data_path)

@@ -1,0 +1,1 @@
+{"duration": 130.15468072891235, "num-workers": 3, "experiment": "{'name': 'spacy-crf', 'mode': 'trainonly', 'num_folds': 3, 'score_task': <spacyCrf_score_task.SpacyCrfScorer object at 0x7f26fdb6b9d0>}"}

@@ -1,0 +1,1 @@
+{"duration": 5380.571077346802, "num-workers": 0, "experiment": "{'name': 'flair', 'mode': 'trainonly', 'num_folds': 3, 'score_task': <flair_score_tasks.BiLSTMConll03en object at 0x7f25385da310>}"}

@@ -1,0 +1,1 @@
+{"duration": 1619.3676626682281, "num-workers": 0, "experiment": "{'name': 'farm', 'mode': 'trainonly', 'num_folds': 3, 'score_task': <farm_score_tasks.FarmSeqTagScoreTask object at 0x7f453b4b8c50>}"}
