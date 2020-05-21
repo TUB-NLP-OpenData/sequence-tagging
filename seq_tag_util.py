@@ -77,6 +77,9 @@ def bilou2bio(tag_seq):
 
 
 def spanlevel_pr_re_f1(label_pred, label_correct):
+    '''
+    see: https://github.com/UKPLab/deeplearning4nlp-tutorial/blob/master/2015-10_Lecture/Lecture3/code/BIOF1Validation.py
+    '''
     pred_counts = [
         compute_TP_P(pred, gold) for pred, gold in zip(label_pred, label_correct)
     ]
@@ -112,6 +115,9 @@ def calc_seqtag_tokenlevel_scores(gold_seqs: Sequences, pred_seqs: Sequences):
 
 
 def compute_TP_P(guessed, correct):
+    '''
+    see: https://github.com/UKPLab/deeplearning4nlp-tutorial/blob/master/2015-10_Lecture/Lecture3/code/BIOF1Validation.py
+    '''
     assert len(guessed) == len(correct)
     correctCount = 0
     count = 0
