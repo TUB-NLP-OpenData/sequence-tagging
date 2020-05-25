@@ -77,9 +77,9 @@ def bilou2bio(tag_seq):
 
 
 def spanlevel_pr_re_f1(label_pred, label_correct):
-    '''
+    """
     see: https://github.com/UKPLab/deeplearning4nlp-tutorial/blob/master/2015-10_Lecture/Lecture3/code/BIOF1Validation.py
-    '''
+    """
     pred_counts = [
         compute_TP_P(pred, gold) for pred, gold in zip(label_pred, label_correct)
     ]
@@ -115,9 +115,9 @@ def calc_seqtag_tokenlevel_scores(gold_seqs: Sequences, pred_seqs: Sequences):
 
 
 def compute_TP_P(guessed, correct):
-    '''
+    """
     see: https://github.com/UKPLab/deeplearning4nlp-tutorial/blob/master/2015-10_Lecture/Lecture3/code/BIOF1Validation.py
-    '''
+    """
     assert len(guessed) == len(correct)
     correctCount = 0
     count = 0
@@ -168,3 +168,65 @@ def char_precise_spans_to_token_spans(
         )
         spans.append((closest_token_start, closest_token_end, label))
     return spans
+
+
+def char_precise_spans_to_BIO_tagseq(
+    char_precise_spans: List[Tuple[int, int, str]], start_ends: List[Tuple[int, int]]
+) -> List[str]:
+    tags = ["O" for _ in range(len(start_ends))]
+
+    def find_closest(seq: List[int], i: int):
+        return int(np.argmin([np.abs(k - i) for k in seq]))
+
+    for sstart, send, slabel in char_precise_spans:
+        closest_token_start = find_closest([s for s, e in start_ends], sstart)
+        closest_token_end = find_closest([e for s, e in start_ends], send)
+        if closest_token_end - closest_token_start == 0:
+            tags[closest_token_start] = "B-" + slabel
+        else:
+            tags[closest_token_start] = "B-" + slabel
+            tags[closest_token_end] = "I-" + slabel
+            for id in range(closest_token_start + 1, closest_token_end):
+                tags[id] = "I-" + slabel
+    return tags
+
+
+import re
+
+
+def regex_tokenizer(
+    text, pattern=r"(?u)\b\w\w+\b"
+) -> List[Tuple[int, int, str]]:  # pattern stolen from scikit-learn
+    return [(m.start(), m.end(), m.group()) for m in re.finditer(pattern, text)]
+
+
+def minimal_test_spans_to_bio_tagseq():
+    """
+    original labeled spans
+    xxx xx	X
+    y yy	Y
+    y	Y
+    more or less messed up labeles due to tokenizing
+    xxx	B-X
+    xxy	B-Y
+    yy	I-Y
+    oyo	B-Y
+    """
+
+    text = "xxx xxy yy oyo"
+    spans = [(0, 5, "X"), (6, 9, "Y"), (12, 12, "Y")]
+    tokens = regex_tokenizer(text)
+    tags = char_precise_spans_to_BIO_tagseq(
+        spans, start_ends=[(s, e) for s, e, t in tokens]
+    )
+    print("original labeled spans")
+    for s, e, l in spans:
+        print("%s\t%s" % (text[s : (e + 1)], l))
+
+    print("more or less messed up labeles due to tokenizing")
+    for (_, _, tok), tag in zip(tokens, tags):
+        print("%s\t%s" % (tok, tag))
+
+
+if __name__ == "__main__":
+    minimal_test_spans_to_bio_tagseq()
