@@ -73,7 +73,7 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
 
             chosen_data += [data[i] for i in idx]
             data = [d for k, d in enumerate(data) if k not in idx]
-            predictions, idx = cls.predict_with_targets_and_scores(
+            predictions, idx = cls.predict_and_pick_from_corpus(
                 partial(job.select_fun, num_to_select=step),
                 chosen_data,
                 data,
@@ -92,7 +92,7 @@ class ActiveLearnSpacyCrfSeqTagScoreTask(GenericTask):
         return job.__dict__
 
     @classmethod
-    def predict_with_targets_and_scores(cls, select_fun, train, corpus, test, params):
+    def predict_and_pick_from_corpus(cls, select_fun, train, corpus, test, params):
 
         tagger = SpacyCrfSuiteTagger(params=params)
         tagger.fit(train)
