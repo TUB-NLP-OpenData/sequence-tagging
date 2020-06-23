@@ -1,4 +1,6 @@
 # sequence-tagging
+![image](images/seqtag_example1.jpg)
+one sentence from JNLPBA-dataset visualized with [doccano](https://github.com/doccano/doccano.git)
 ### setup
     pip install -r requirements
     python -m spacy download en_core_web_sm
