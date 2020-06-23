@@ -191,6 +191,36 @@ def char_precise_spans_to_BIO_tagseq(
     return tags
 
 
+def bio_to_token_spans(tag_seq: List[str]):
+    spans = []
+    assert all([t.startswith("B-") or t.startswith("I-") or t == "O" for t in tag_seq])
+    i = 0
+    while i < len(tag_seq):
+        if tag_seq[i].startswith("B-"):
+            label = tag_seq[i][2:]
+            startIdx = i
+            i += 1
+            while (
+                i < len(tag_seq)
+                and tag_seq[i].startswith("I-")
+                and tag_seq[i][2:] == label
+            ):
+                i += 1
+            spans.append((startIdx, i - 1, label))
+        else:
+            i += 1
+    return spans
+
+
+def token_spans_to_char_precise_spans(
+    token_spans: List[Tuple[int, int, str]], start_ends: List[Tuple]
+):
+    return [
+        (start_ends[span[0]][0], start_ends[span[1]][1], span[2])
+        for span in token_spans
+    ]
+
+
 import re
 
 
@@ -229,4 +259,12 @@ def minimal_test_spans_to_bio_tagseq():
 
 
 if __name__ == "__main__":
-    minimal_test_spans_to_bio_tagseq()
+    tag_seq = ["O", "B-X", "I-X", "B-Y", "I-Y"]
+    s = " ".join(["nix", "blaa", "whaaaat", "the", "oo"])
+    tokens = regex_tokenizer(s)
+    spans = bio_to_token_spans(tag_seq)
+    char_precise_spans = token_spans_to_char_precise_spans(
+        spans, [(s, e) for s, e, t in tokens]
+    )
+    print()
+    # minimal_test_spans_to_bio_tagseq()
