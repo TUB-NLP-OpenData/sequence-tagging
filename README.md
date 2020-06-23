@@ -22,3 +22,7 @@ see `scibert/data/ner/JNLPBA`
 
 ![train](images/learning_curve_JNLPBA_train_flair-spacyCrfSuite.png)
 ![test](images/learning_curve_JNLPBA_test_flair-spacyCrfSuite.png)
+
+
+{% include_relative results/readme.md %}
+{% include_relative active_learning/readme.md %}
