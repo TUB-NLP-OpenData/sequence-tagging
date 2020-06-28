@@ -47,6 +47,8 @@ see `scibert/data/ner/JNLPBA`
 # sequence tagging [transformers + lightning](https://github.com/huggingface/transformers/blob/master/examples/token-classification/run_pl_ner.py)
 
 ### setup on HPC
+0. `git clone https://github.com/dertilo/transformers.git`
+0. `git checkout lightning_examples`
 0. `cd transformers/examples && pip install -r requirements.txt`
 2. __on frontend__: `OMP_NUM_THREADS=2 wandb init`
 1. __on frontend:__ `OMP_NUM_THREADS=8 bash download_data.sh`
