@@ -4,3 +4,4 @@ allennlp
 sklearn-crfsuite
 seaborn
 farm
+spacy
