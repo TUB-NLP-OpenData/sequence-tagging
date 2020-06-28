@@ -47,15 +47,16 @@ see `scibert/data/ner/JNLPBA`
 # sequence tagging [transformers + lightning](https://github.com/huggingface/transformers/blob/master/examples/token-classification/run_pl_ner.py)
 
 ### setup on HPC
-0. `pip install -r requirements.txt`
-1. `OMP_NUM_THREADS=8 bash download_data.sh`
-2. `python preprocess.py --model_name_or_path bert-base-multilingual-cased --max_seq_length 128`
-3. `export PYTHONPATH="../":"${PYTHONPATH}"`
-4. to download pretrained model: `OMP_NUM_THREADS=8 python3 run_pl_ner.py --data_dir ./ --labels ./labels.txt --model_name_or_path $BERT_MODEL --do_train`
+0. `cd transformers/examples && pip install -r requirements.txt`
+2. __on frontend__: `OMP_NUM_THREADS=2 wandb init`
+1. __on frontend:__ `OMP_NUM_THREADS=8 bash download_data.sh`
+2. __on node:__ `python preprocess.py --model_name_or_path bert-base-multilingual-cased --max_seq_length 128`
+3. __on node:__ `export PYTHONPATH=~/transformers/examples`
+4. __on frontend:__ to download pretrained model: `OMP_NUM_THREADS=8 python3 run_pl_ner.py --data_dir ./ --labels ./labels.txt --model_name_or_path $BERT_MODEL --do_train`
 ### train & evaluate
 
 ```shell script
-python3 run_pl_ner.py --data_dir ./ \
+WANDB_MODE=dryrun python ~/transformers/examples/token-classification/run_pl_ner.py --data_dir ./ \
 --labels ./labels.txt \
 --model_name_or_path bert-base-multilingual-cased  \
 --output_dir checkpoints \
@@ -66,6 +67,8 @@ python3 run_pl_ner.py --data_dir ./ \
 --do_train \
 --do_predict
 ```
+
+* sync with wandb: `OMP_NUM_THREADS=2 wandb sync wandb/dryrun-...`
 after 3 epochs in ~20 minutes: 
 ```shell script
 TEST RESULTS
