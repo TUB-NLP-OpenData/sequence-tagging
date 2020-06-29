@@ -58,10 +58,10 @@ see `scibert/data/ner/JNLPBA`
 ### train & evaluate
 
 ```shell script
-WANDB_MODE=dryrun python ~/transformers/examples/token-classification/run_pl_ner.py --data_dir ./ \
+PYTHONPATH=~/transformers/examples WANDB_MODE=dryrun python ~/transformers/examples/token-classification/run_pl_ner.py --data_dir ./ \
 --labels ./labels.txt \
 --model_name_or_path bert-base-multilingual-cased  \
---output_dir checkpoints \
+--output_dir germeval2014 \
 --max_seq_length  128 \
 --num_train_epochs 3 \
 --train_batch_size 32 \
@@ -70,7 +70,8 @@ WANDB_MODE=dryrun python ~/transformers/examples/token-classification/run_pl_ner
 --do_predict
 ```
 
-* sync with wandb: `OMP_NUM_THREADS=2 wandb sync wandb/dryrun-...`
+* sync with [wandb](https://app.wandb.ai/dertilo/sequence-tagging/runs/2wvo8wx0/overview?workspace=user-): `OMP_NUM_THREADS=2 wandb sync wandb/dryrun-...`
+* [resuls](https://app.wandb.ai/dertilo/sequence-tagging/runs/2wvo8wx0/overview?workspace=user-)
 after 3 epochs in ~20 minutes: 
 ```shell script
 TEST RESULTS
